@@ -1,0 +1,3896 @@
+/* Lienzo del Mapa de Modelamiento — estética del diseño original (glow/pulse,
+   ícono, métrica), theme-aware: sigue el tema claro/oscuro de Dynatrace.
+   Estilos por CLASES (no inline) para ser amigables con el CSP de AppEngine. */
+
+/* Shell = barra lateral (alto completo) + columna principal, en fila — estilo
+   Notebooks: la lista de mapas llega hasta arriba, los controles van sobre el lienzo. */
+.mapa-shell {
+  display: flex;
+  flex-direction: row;
+  height: 100%;
+  /* Fondo del shell: SOLO asoma por el recorte redondeado de la esquina sup-izq
+     del stage (.mapa-main). Usa el gris de la BARRA LATERAL (que está justo al lado)
+     → la esquina se ve como si la barra lateral envolviera el stage (limpio), no
+     como un parche. Antes asomaba el fondo de la página (casi igual al stage) y no
+     se notaba; con un gris fuerte se veía como mancha. */
+  background: var(--mapa-sidebar-bg);
+  /* CONTROLES (barra lateral + barra del mapa) con la MISMA pila tipográfica que
+     usan los componentes Strato (DynatraceFlow → Roboto → Helvetica), registrada
+     por AppRoot, para que la letra se sienta idéntica a la nativa. El lienzo/nodos
+     sí usan Manrope (.mapa-canvas/.sev-node).
+     OJO: DynatraceFlow solo trae pesos 100–600 y 900 (NO 700/800); pedir 700/800
+     hace que el navegador caiga al 900 (Heavy) y se vea "más gruesa" → usar ≤600. */
+  font-family: var(--dt-typography-text-default-family, "DynatraceFlow", "Roboto", "Helvetica", sans-serif);
+}
+/* Page.Main de Strato mete 16px de padding + fondo claro alrededor de nuestro
+   shell (las "barras blancas"). Lo anulamos para que la barra lateral llegue a
+   ras del borde (arriba e izquierda) y se funda con el título de la app. */
+.mapa-page-main > div {
+  padding: 0 !important;
+}
+/* "Compartir" (toolbar) y "Nuevo mapa" (header): pre-sombreados con el gris del
+   usuario. "Importar" se queda como viene (transparente, sin borde). */
+.mapa-newmap-btn,
+.mapa-share-btn:not(:disabled) {
+  background: var(--mapa-preshade) !important;
+}
+.mapa-newmap-btn:hover,
+.mapa-share-btn:not(:disabled):hover {
+  background: var(--mapa-btn-hover) !important;
+}
+/* "Importar": SIN pre-sombreado ni borde (transparente; solo hover gris). */
+.mapa-import-btn {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+.mapa-import-btn:hover {
+  background: var(--mapa-btn-hover) !important;
+}
+/* Columna principal = barra de controles del mapa + lienzo. Fondo = "stage" gris
+   (estilo Notebooks): la toolbar y la ventana del mapa flotan sobre este gris. */
+.mapa-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  background: var(--mapa-stage-bg);
+  /* Esquina superior-izquierda redondeada: el stage se acomoda bajo el header
+     (estilo Notebooks). El fondo se recorta solo con border-radius (sin overflow,
+     para no cortar la sombra de la ventana flotante). */
+  border-top-left-radius: 12px;
+}
+.mapa-canvas {
+  position: relative; /* ancla la leyenda de consumo (abajo-derecha) */
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  /* La "ventana" del mapa: flota sobre el stage gris, con fondo propio y esquinas
+     redondeadas. overflow:hidden recorta el contenido a las esquinas → al panear,
+     el contenido se mueve pero el marco (la ventana) queda fijo. */
+  margin: 4px 48px 12px;
+  background: var(--mapa-window-bg);
+  color: var(--mapa-content-text);
+  border: 1px solid var(--mapa-delim);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px var(--mapa-shadow);
+  font-family: "Manrope", system-ui, -apple-system, sans-serif;
+}
+/* Zona del lienzo: contenedor relativo que aloja la ventana del mapa y, en su
+   gutter izquierdo, el botón "+" flotante (estilo Notebooks). */
+.mapa-stage {
+  position: relative;
+  flex: 1;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+}
+.mapa-gutter-add {
+  position: absolute;
+  left: 0;
+  top: 8px;
+  width: 48px;
+  display: flex;
+  justify-content: center;
+  z-index: 6;
+}
+
+/* ── Leyenda de consumo estimado de Grail (abajo-derecha del lienzo) ──────────
+   Discreta: texto gris pequeño en una píldora opaca. Al pasar el mouse muestra
+   un desglose (costo por ejecución + nº de consultas únicas). Sin backdrop-filter
+   a propósito (repintaría al panear); fondo opaco para que se lea sobre los dots. */
+.mapa-cost-legend {
+  position: absolute;
+  right: 12px;
+  bottom: 10px;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  font-family: "Manrope", system-ui, sans-serif;
+  font-size: 11px;
+  line-height: 1.4;
+  color: color-mix(in srgb, var(--mapa-text) 55%, transparent);
+  background: var(--mapa-card);
+  border: 1px solid var(--mapa-line);
+  border-radius: 8px;
+  padding: 3px 9px;
+  box-shadow: 0 2px 8px var(--mapa-shadow);
+  cursor: default;
+  user-select: none;
+  white-space: nowrap;
+}
+.mapa-cost-tip {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 6px);
+  min-width: 150px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: var(--mapa-card);
+  border: 1px solid var(--mapa-line);
+  box-shadow: 0 6px 18px var(--mapa-shadow);
+  color: var(--mapa-text);
+  font-size: 11px;
+  line-height: 1.6;
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(3px);
+  transition: opacity 0.12s ease, transform 0.12s ease, visibility 0.12s;
+  pointer-events: none;
+}
+.mapa-cost-legend:hover .mapa-cost-tip,
+.mapa-cost-legend:focus-visible .mapa-cost-tip {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+/* Spinner "calculando" del indicador de querys (reusa la animación mapa-spin). */
+.mapa-cost-spin {
+  display: inline-flex;
+  vertical-align: -1px;
+  margin-right: 4px;
+  color: var(--mapa-muted);
+}
+/* Nota aclaratoria del tooltip (qué consultas no consumen): se permite envolver. */
+.mapa-cost-freenote {
+  margin-top: 5px;
+  padding-top: 5px;
+  border-top: 1px solid var(--mapa-line);
+  max-width: 230px;
+  white-space: normal;
+  font-size: 10px;
+  color: var(--mapa-muted);
+}
+
+/* ── Flechitas direccionales de las rayas (MapEdge) ───────────────────────────
+   Marcan el sentido del flujo (ida →, regreso ←). Respetan "reducir movimiento". */
+.mapa-edge-flow {
+  opacity: 0.95;
+}
+@media (prefers-reduced-motion: reduce) {
+  /* Sin marcha ni flechitas para quien pidió menos movimiento en el sistema. */
+  .mapa-edge-flow {
+    display: none;
+  }
+  .react-flow__edge-path {
+    animation: none !important;
+  }
+}
+.mapa-hidden {
+  display: none;
+}
+.mapa-canvas .react-flow__attribution {
+  display: none;
+}
+
+/* Estado vacío del lienzo: cuando no hay ningún mapa abierto (entrar por primera
+   vez o tras borrar el último). En vez del mapa de ejemplo, una invitación a
+   crear el primero. Usa la tipografía de la app (no la del lienzo). */
+.mapa-empty {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  box-sizing: border-box;
+  font-family: var(--dt-typography-text-default-family, DynatraceFlow, Roboto, Helvetica, sans-serif);
+}
+.mapa-empty-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+  max-width: 380px;
+}
+.mapa-empty-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  margin-bottom: 4px;
+  border-radius: 14px;
+  color: var(--dt-colors-text-primary-default, #464cce);
+  background: var(--dt-colors-background-container-primary-default, #f1f2f9);
+}
+.mapa-empty-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--dt-colors-text-neutral-default, var(--mapa-text));
+}
+.mapa-empty-sub {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--dt-colors-text-neutral-subdued, var(--mapa-muted));
+}
+.mapa-empty-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+/* ── Barra superior nativa (acciones del mapa + zoom) ── */
+.mapa-topbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  padding: 12px 14px 10px; /* toolbar ~20% más alta: los botones respiran */
+  /* Transparente: descansa sobre el stage gris (sin barra blanca ni línea). */
+  background: transparent;
+  color: var(--mapa-text);
+  z-index: 5;
+}
+.mapa-topbar-spacer {
+  flex: 1;
+}
+.mapa-topbar-sep {
+  width: 1px;
+  align-self: stretch;
+  margin: 4px 4px;
+  background: var(--mapa-line);
+  flex: 0 0 auto;
+}
+.mapa-zoom {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 9px;
+  /* Caja alrededor del zoom: sin el recuadro no se entiende que es un control. */
+  border: 1px solid var(--mapa-delim);
+  background: transparent;
+}
+.mapa-zoom-btn {
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1;
+  width: 28px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border: none;
+  background: transparent;
+  color: var(--mapa-text);
+  cursor: pointer;
+  border-radius: 6px;
+}
+.mapa-zoom-btn:hover {
+  background: var(--mapa-btn-hover);
+}
+.mapa-zoom-pct {
+  font-size: 11px;
+  font-weight: 600;
+  min-width: 40px;
+  text-align: center;
+  color: var(--mapa-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Botón ícono de la barra (toggle de la barra lateral) */
+.mapa-iconbtn {
+  font: inherit;
+  font-size: 16px;
+  line-height: 1;
+  width: 32px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--mapa-text);
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.mapa-iconbtn:hover {
+  background: var(--mapa-btn-hover);
+}
+/* Deshacer / rehacer (grupo en la barra del mapa) */
+.mapa-undo {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 9px;
+  border: none;
+  background: transparent;
+}
+.mapa-undo-btn {
+  font: inherit;
+  font-size: 15px;
+  line-height: 1;
+  width: 28px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border: none;
+  background: transparent;
+  color: var(--mapa-text);
+  cursor: pointer;
+  border-radius: 6px;
+}
+.mapa-undo-btn:hover:not(:disabled) {
+  background: var(--mapa-btn-hover);
+}
+.mapa-undo-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+/* Botón "+" (añadir) — solo el ícono "+", neutro/gris (como los demás controles
+   de ícono); abre submenú Nodo / Título. */
+.mapa-addbtn {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 30px;
+  font: inherit;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--mapa-text);
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.mapa-addbtn:hover {
+  background: var(--mapa-btn-hover);
+}
+/* Botón "fantasma" (ghost): ícono + texto, transparente, sin borde, hover gris.
+   Para acciones de la toolbar que NO van pre-sombreadas (p. ej. "Re-organizar").
+   El único pre-sombreado es "Compartir" (Button default de Strato). */
+.mapa-ghostbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 10px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--mapa-text);
+  cursor: pointer;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.mapa-ghostbtn:hover {
+  background: var(--mapa-btn-hover);
+}
+.mapa-ghostbtn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+/* Nombre del mapa activo + menú de acciones en la barra superior */
+.mapa-mapname-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  flex: 0 1 auto;
+}
+.mapa-mapname {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--mapa-text);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 4px 6px;
+  border-radius: 6px;
+  text-align: left;
+}
+.mapa-mapname:hover {
+  background: var(--mapa-btn-hover);
+}
+/* Solo lectura: el nombre es un rótulo, no un botón de renombrar. */
+.mapa-mapname-static,
+.mapa-mapname-static:hover {
+  cursor: default;
+  background: transparent;
+}
+.mapa-name-input {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--mapa-text);
+  background: var(--mapa-card);
+  border: 1px solid var(--sev-accent);
+  border-radius: 6px;
+  padding: 4px 8px;
+  outline: none;
+  width: 240px;
+  max-width: 40vw;
+}
+/* Variante chica/fantasma del botón ícono (⋮ junto al nombre). */
+.mapa-iconbtn-sm {
+  width: 26px;
+  height: 26px;
+  border: none;
+  color: var(--mapa-muted);
+}
+.mapa-iconbtn-sm:hover {
+  border: none;
+  color: var(--mapa-text);
+  background: var(--mapa-btn-hover);
+}
+/* En modo compacto se oculta el nombre (queda el ⋮ con las acciones). */
+.mapa-topbar-compact .mapa-mapname {
+  display: none;
+}
+.mapa-topbar-compact {
+  gap: 6px;
+}
+
+/* ── Barra lateral de mapas — look nativo (tokens Strato, estilo Notebooks) ── */
+.mapa-sidebar {
+  flex: 0 0 auto; /* el ancho lo fija el estilo inline (ajustable y persistido) */
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--mapa-sidebar-bg);
+  /* Sin línea divisoria: la barra lateral y el stage se encuentran SOLO por color
+     (el stage redondea su esquina sup-izq dejando ver este mismo gris detrás). */
+  color: var(--mapa-list-text);
+}
+.mapa-sidebar-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 14px 8px 16px; /* alinea con la sangría del listado */
+}
+.mapa-sidebar-head::after {
+  /* Línea horizontal continua tras "Mapas" hasta el borde del panel,
+     como "Last opened by you ———" en Notebooks. */
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--mapa-delim);
+}
+.mapa-sidebar-title {
+  font-size: 11px; /* un punto más pequeño */
+  font-weight: 400; /* sin negrilla */
+  color: var(--mapa-muted);
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+/* Tirador de ancho en el borde derecho, con una agarradera visible en el medio
+   (como en Notebooks) para que se note que se puede arrastrar. */
+.mapa-sidebar-resize {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  /* La zona de agarre TERMINA justo en la separación con el stage (borde derecho del
+     panel) y se extiende hacia la izquierda. Con justify-content:flex-end la
+     agarradera visible queda pegada al lado IZQUIERDO de la separación (no montada
+     sobre ella, como antes que iba centrada en la costura). */
+  right: 0;
+  width: 12px;
+  cursor: col-resize;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+.mapa-sidebar-resize::before {
+  content: "";
+  width: 4px;
+  height: 34px;
+  margin-right: 2px; /* un pelín a la izquierda de la separación */
+  border-radius: 3px;
+  background: #595a7b;
+  transition: background 0.12s ease, height 0.12s ease;
+}
+.mapa-sidebar-resize:hover::before,
+.mapa-sidebar-resize:active::before {
+  background: #595a7b;
+  height: 48px;
+}
+.mapa-sidebar-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 8px 8px 16px; /* sangría izquierda (~5 espacios) desde el borde del panel */
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.mapa-sidebar-empty {
+  font-size: 12px;
+  color: var(--dt-colors-text-neutral-subdued, var(--mapa-muted));
+  padding: 10px 6px;
+}
+.mapa-maprow {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  border-radius: 6px;
+  padding: 1px 4px 1px 2px;
+}
+.mapa-maprow:hover {
+  background: var(--dt-colors-background-container-neutral-default, rgba(127, 127, 127, 0.08));
+}
+/* Seleccionado: igual que el ítem activo de Notebooks → fondo "primary" lila
+   suave + barra y texto en el violeta primario de Dynatrace (no el cyan propio). */
+.mapa-maprow-on {
+  background: var(--mapa-sel-bg);
+}
+.mapa-maprow-on::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  border-radius: 0;
+  background: var(--dt-colors-text-primary-default, #464cce);
+}
+.mapa-maprow-name {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+  color: var(--mapa-list-text);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 7px 4px 7px 8px; /* separa el texto de la rayita de selección */
+  border-radius: 6px;
+}
+.mapa-maprow-on .mapa-maprow-name {
+  color: var(--mapa-sel-text);
+  font-weight: 600;
+}
+.mapa-maprow-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Marca de "compartido con otras personas" (ícono de grupo), a la derecha del
+   nombre, como en Notebooks. Siempre visible cuando el mapa está compartido. */
+.mapa-maprow-shared {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  color: var(--dt-colors-text-neutral-subdued, var(--mapa-muted));
+}
+.mapa-maprow-on .mapa-maprow-shared {
+  color: var(--mapa-sel-text);
+}
+.mapa-maprow-actions {
+  display: none;
+  align-items: center;
+  gap: 1px;
+  flex: 0 0 auto;
+}
+.mapa-maprow:hover .mapa-maprow-actions,
+.mapa-maprow-on .mapa-maprow-actions {
+  display: flex;
+}
+.mapa-maprow-btn {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dt-colors-text-neutral-subdued, var(--mapa-muted));
+  cursor: pointer;
+}
+.mapa-maprow-btn:hover {
+  color: var(--dt-colors-text-neutral-default, var(--mapa-text));
+  background: var(--dt-colors-background-container-neutral-emphasized, rgba(127, 127, 127, 0.14));
+}
+.mapa-rename-input {
+  width: 100%;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--dt-colors-text-neutral-default, var(--mapa-text));
+  background: var(--dt-colors-background-base-default, var(--mapa-card));
+  border: 1px solid var(--dt-colors-border-primary-default, var(--sev-accent));
+  border-radius: 6px;
+  padding: 6px 8px;
+  outline: none;
+  box-sizing: border-box;
+}
+/* Pie de la barra lateral: acceso a la papelera (como los enlaces de Notebooks). */
+.mapa-sidebar-foot {
+  border-top: 1px solid var(--dt-colors-border-neutral-default, var(--mapa-line));
+  padding: 6px 8px;
+  flex: 0 0 auto;
+}
+.mapa-sidebar-foot-btn {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--dt-colors-text-neutral-subdued, var(--mapa-muted));
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 6px;
+}
+.mapa-sidebar-foot-btn:hover {
+  color: var(--dt-colors-text-neutral-default, var(--mapa-text));
+  background: var(--dt-colors-background-container-neutral-default, rgba(127, 127, 127, 0.08));
+}
+
+/* Papelera (modal, en portal → tokens Strato, no variables --mapa-*) */
+.mapa-trash-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+.mapa-trash-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--dt-colors-border-neutral-default, #c5c8d6);
+  background: var(--dt-colors-background-container-neutral-emphasized, rgba(127, 127, 127, 0.06));
+}
+.mapa-trash-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.mapa-trash-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mapa-trash-meta {
+  font-size: 11.5px;
+  opacity: 0.7;
+}
+
+/* ── Paleta tema OSCURO ── */
+.mapa--dark {
+  --mapa-bg:
+    radial-gradient(900px 520px at 18% 0%, rgba(65, 216, 245, 0.06), transparent 60%),
+    radial-gradient(820px 620px at 85% 100%, rgba(124, 77, 255, 0.06), transparent 60%),
+    #12151f;
+  --mapa-bg-solid: #12151f; /* color base del lienzo, para "huecos" en SVG */
+  --mapa-card: rgba(38, 43, 64, 0.92);
+  --mapa-text: #e9eefb;
+  --mapa-muted: #8e9ab4;
+  --mapa-line: rgba(255, 255, 255, 0.12);
+  --mapa-shadow: rgba(0, 0, 0, 0.28);
+  --mapa-handle-border: #12151f;
+  --mapa-panel: rgba(30, 34, 51, 0.86);
+  --mapa-bar: #171b28;
+  /* Rediseño "estilo Notebooks" — paleta del usuario (modo OSCURO). */
+  --mapa-sidebar-bg: #212134; /* barra lateral de mapas */
+  --mapa-sel-bg: #31314e; /* resaltado del mapa abierto */
+  --mapa-sel-text: #adb0fa; /* letra del mapa abierto */
+  --mapa-parent-accent: #f2a95c; /* acento del ícono de Mapa Padre en la lista */
+  --mapa-list-text: #ebecfe; /* letra de mapas no seleccionados */
+  --mapa-stage-bg: #19192b; /* fondo gris de la derecha (stage) */
+  --mapa-window-bg: #111121; /* la "ventana" del mapa que flota */
+  --mapa-content-text: #ebecfe; /* letra del contenido (derecha) */
+  --mapa-delim: #3b3b50; /* gris para punticos + bordes internos */
+  --mapa-btn-hover: #3b3b50; /* hover de botones de la toolbar */
+  --mapa-preshade: #2a2a42; /* pre-sombreado de "Compartir" y "Nuevo mapa" */
+  --sev-ok: #19e68c;
+  --sev-warn: #ffb425;
+  --sev-err: #ff4d5e;
+  --sev-unk: #8e9ab4;
+  --sev-accent: #41d8f5;
+}
+
+/* ── Paleta tema CLARO ── */
+.mapa--light {
+  --mapa-bg:
+    radial-gradient(900px 520px at 18% 0%, rgba(8, 148, 194, 0.05), transparent 60%),
+    #f5f6f9;
+  --mapa-bg-solid: #f5f6f9; /* color base del lienzo, para "huecos" en SVG */
+  --mapa-card: #ffffff;
+  --mapa-text: #131d36;
+  --mapa-muted: #5b6781;
+  --mapa-line: rgba(19, 29, 54, 0.14);
+  --mapa-shadow: rgba(19, 29, 54, 0.12);
+  --mapa-handle-border: #ffffff;
+  --mapa-panel: rgba(255, 255, 255, 0.92);
+  --mapa-bar: #ffffff;
+  /* Rediseño "estilo Notebooks" — paleta del usuario (modo CLARO). */
+  --mapa-sidebar-bg: #f2f2f5; /* barra lateral de mapas */
+  --mapa-sel-bg: #dde1f5; /* resaltado del mapa abierto */
+  --mapa-sel-text: #3d43c2; /* letra del mapa abierto */
+  --mapa-parent-accent: #cf7a17; /* acento del ícono de Mapa Padre en la lista */
+  --mapa-list-text: #292a44; /* letra de mapas no seleccionados */
+  --mapa-stage-bg: #f9f9fa; /* fondo gris de la derecha (stage) */
+  --mapa-window-bg: #ffffff; /* la "ventana" del mapa que flota */
+  --mapa-content-text: #292a44; /* letra del contenido (derecha) */
+  --mapa-delim: #dadbe3; /* gris para punticos + bordes internos */
+  --mapa-btn-hover: #e0e1e8; /* hover de botones de la toolbar */
+  --mapa-preshade: #e4e5eb; /* pre-sombreado de "Compartir" y "Nuevo mapa" */
+  --sev-ok: #0caf66;
+  --sev-warn: #dd8f00;
+  --sev-err: #e0314a;
+  --sev-unk: #8593ad;
+  --sev-accent: #0894c2;
+}
+
+/* ── Nodo de severidad ── */
+.sev-node {
+  position: relative; /* ancla el halo de glow (::after) — ver sección de glow */
+  width: 214px;
+  box-sizing: border-box;
+  padding: 11px 13px 10px;
+  border-radius: 13px;
+  background: var(--mapa-card);
+  border: 1px solid var(--mapa-line);
+  color: var(--mapa-text);
+  box-shadow: 0 6px 18px var(--mapa-shadow);
+}
+.sev-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+/* Tamaños del nodo: md = base (arriba). sm/lg reescalan. */
+.sev-sm {
+  width: 170px;
+  padding: 8px 10px 7px;
+  border-radius: 11px;
+}
+.sev-sm .sev-row { gap: 7px; }
+.sev-sm .sev-icon { width: 24px; height: 24px; border-radius: 7px; }
+.sev-sm .sev-name { font-size: 11.5px; }
+.sev-sm .sev-kind { font-size: 8px; }
+.sev-sm .sev-badge { width: 16px; height: 16px; font-size: 10px; }
+
+.sev-lg {
+  width: 320px;
+  padding: 18px 20px 16px;
+  border-radius: 18px;
+}
+.sev-lg .sev-row { gap: 14px; }
+.sev-lg .sev-icon { width: 48px; height: 48px; border-radius: 12px; }
+.sev-lg .sev-name { font-size: 18px; }
+.sev-lg .sev-kind { font-size: 11.5px; }
+.sev-lg .sev-badge { width: 30px; height: 30px; font-size: 17px; }
+.sev-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  background: color-mix(in srgb, var(--sev, var(--sev-unk)) 14%, transparent);
+  color: var(--sev, var(--sev-unk));
+}
+.sev-body {
+  flex: 1;
+  min-width: 0;
+}
+.sev-name {
+  font-weight: 700;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sev-kind {
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mapa-muted);
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sev-badge {
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+  flex: 0 0 auto;
+}
+/* Botón "(i)" del nodo: abre la burbuja "¿Por qué?". Solo aparece en
+   advertencia/error. FLOTA sobresaliendo de la esquina superior derecha del nodo,
+   relleno con el color del estado + aro del color de la tarjeta + sombra → se ve
+   prominente y obviamente clickeable. Crece al pasar el mouse. nodrag/nopan en el
+   JSX evita que el clic arrastre el nodo. */
+.sev-why {
+  position: absolute;
+  top: -11px;
+  right: -11px;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  background: #f8e5e6;
+  color: #fff;
+  border: 2.5px solid var(--mapa-card);
+  /* Glow propio: halo suave del color del estado, siempre presente. */
+  box-shadow:
+    0 0 12px color-mix(in srgb, var(--sev, var(--sev-unk)) 65%, transparent),
+    0 3px 8px var(--mapa-shadow),
+    0 0 0 1px var(--mapa-line);
+  z-index: 6;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.sev-why:hover {
+  transform: scale(1.16);
+  box-shadow:
+    0 0 16px color-mix(in srgb, var(--sev, var(--sev-unk)) 80%, transparent),
+    0 6px 16px var(--mapa-shadow),
+    0 0 0 1px var(--mapa-line);
+}
+.sev-why:active {
+  transform: scale(1.04);
+}
+
+/* PALPITAR: aro que crece y se desvanece detrás del badge (GPU: scale+opacity,
+   como el glow de los nodos). Respeta prefers-reduced-motion. */
+.sev-why::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--sev, var(--sev-unk));
+  z-index: -1;
+  pointer-events: none;
+  animation: sev-why-pulse 1.8s ease-out infinite;
+}
+@keyframes sev-why-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+  70% {
+    transform: scale(2);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sev-why::after {
+    animation: none;
+    opacity: 0;
+  }
+}
+.sev-sm .sev-why { width: 24px; height: 24px; top: -10px; right: -10px; }
+.sev-lg .sev-why { width: 32px; height: 32px; top: -13px; right: -13px; }
+
+/* ── Pill de SALUD DE CONEXIONES ─────────────────────────────────────────────
+   Flota ENCIMA del nodo, a la izquierda de la burbujita "?" (que ocupa la
+   esquina superior derecha). Colores: verde = sano, rojo = llegó al umbral,
+   gris = sin conexiones (N.A.) o cargando. */
+.sev-connpill {
+  position: absolute;
+  top: -10px;
+  right: 22px;
+  z-index: 5;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  padding: 4px 8px;
+  border-radius: 999px;
+  color: #fff;
+  border: 2px solid var(--mapa-card);
+  box-shadow: 0 2px 6px var(--mapa-shadow);
+  pointer-events: auto;
+  /* Es un <button>: clic → abre la entidad aislada en Smartscape. */
+  appearance: none;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.sev-connpill:hover {
+  transform: scale(1.12);
+  box-shadow: 0 4px 10px var(--mapa-shadow);
+}
+.sev-connpill:active {
+  transform: scale(1.02);
+}
+.sev-connpill-ok  { background: #0caf66; }
+.sev-connpill-warn { background: #dd8f00; }
+.sev-connpill-bad { background: #e0314a; }
+.sev-connpill-na  { background: #8e9ab4; }
+/* Pill del mapa incrustado: misma estética, pero es un <span> informativo (el
+   enlace al mapa hijo va sobre el texto del nodo) → sin cursor ni efecto de clic. */
+.sev-mappill {
+  cursor: default;
+}
+.sev-mappill:hover {
+  transform: none;
+  box-shadow: 0 2px 6px var(--mapa-shadow);
+}
+.sev-sm .sev-connpill { top: -9px; right: 18px; font-size: 9px; padding: 3px 7px; }
+.sev-lg .sev-connpill { top: -12px; right: 24px; font-size: 11px; padding: 5px 9px; }
+/* Signo "?" dentro del badge: color del estado (legible sobre el relleno pálido). */
+.sev-why-q {
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--sev, var(--sev-unk));
+}
+.sev-sm .sev-why-q { font-size: 14px; }
+.sev-lg .sev-why-q { font-size: 20px; }
+
+/* ── Nombre del nodo como enlace (cuando el nodo tiene una URL válida) ──────────
+   Solo el TEXTO es clickeable; el resto del cuadro conserva seleccionar/arrastrar.
+   Hereda tamaño/ellipsis de .sev-name; solo cambia color + subrayado al hover. */
+/* Aplica por CLASE (no por etiqueta): el texto con varios links es un <button>
+   y también debe verse como hipervínculo (azulito). */
+.sev-name-link {
+  /* inline-block → el área clickeable es SOLO el ancho del texto, no toda la
+     tarjeta. max-width:100% conserva el ellipsis para nombres largos. */
+  display: inline-block;
+  max-width: 100%;
+  color: var(--dt-colors-text-primary-default, #2f6bff);
+  text-decoration: none;
+  cursor: pointer;
+}
+.sev-name-link:hover {
+  text-decoration: underline;
+}
+
+/* ── Nota del nodo: ícono flotante (esquina superior IZQUIERDA, simétrico al
+   "(i)"). Solo en modo edición; al hacer clic despliega el texto de la nota. ── */
+.sev-note {
+  position: absolute;
+  top: -10px;
+  left: -10px;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  background: var(--mapa-card, #fff);
+  color: var(--mapa-muted, #6b7594);
+  border: 1.5px solid var(--mapa-line, rgba(19, 29, 54, 0.14));
+  box-shadow: 0 2px 6px var(--mapa-shadow, rgba(19, 29, 54, 0.12));
+  z-index: 6;
+  transition: transform 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+.sev-note:hover,
+.sev-note-on {
+  transform: scale(1.1);
+  color: var(--dt-colors-text-primary-default, #2f6bff);
+  border-color: var(--dt-colors-text-primary-default, #2f6bff);
+}
+.sev-sm .sev-note { width: 20px; height: 20px; top: -8px; left: -8px; }
+.sev-lg .sev-note { width: 28px; height: 28px; top: -12px; left: -12px; }
+
+/* Tarjeta desplegable con el texto de la nota (via NodeToolbar en portal → no la
+   recorta el lienzo). Texto plano con saltos de línea respetados. */
+.mapa-note-pop {
+  max-width: 260px;
+  background: var(--mapa-card, #fff);
+  border: 1px solid var(--mapa-line, rgba(19, 29, 54, 0.14));
+  border-radius: 8px;
+  box-shadow: 0 6px 20px var(--mapa-shadow, rgba(19, 29, 54, 0.16));
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--mapa-text, #131d36);
+  white-space: pre-wrap;
+  word-break: break-word;
+  text-align: left;
+}
+
+/* ── LINKS DEL NODO ──────────────────────────────────────────────────────────
+   El texto del nodo como botón (2+ links): mismo look del enlace, sin estilos
+   de <button>. El popup lista los títulos; clic → abre la URL y se cierra. */
+.sev-name-btn {
+  appearance: none;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  /* SIN width:100%: hereda el inline-block de .sev-name-link para que el área
+     clickeable (y el subrayado) sea solo el ancho del texto. */
+}
+.mapa-links-pop {
+  min-width: 180px;
+  max-width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--mapa-card, #fff);
+  border: 1px solid var(--mapa-line, rgba(19, 29, 54, 0.14));
+  border-radius: 8px;
+  box-shadow: 0 6px 20px var(--mapa-shadow, rgba(19, 29, 54, 0.16));
+  padding: 6px;
+}
+.mapa-links-item {
+  appearance: none;
+  background: none;
+  border: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 9px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--mapa-text, #131d36);
+  cursor: pointer;
+  text-align: left;
+}
+.mapa-links-item:hover {
+  background: var(--mapa-hover, rgba(19, 29, 54, 0.06));
+}
+.mapa-links-item-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Lista de links en el editor del nodo (pestaña "Links y Aspecto"). */
+.mapa-linklist {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+}
+.mapa-linkrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border: 1px solid var(--mapa-line, rgba(19, 29, 54, 0.14));
+  border-radius: 6px;
+  font-size: 12px;
+}
+.mapa-linkrow-title {
+  font-weight: 600;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mapa-linkrow-url {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.65;
+}
+.mapa-links-sep {
+  border-top: 1px solid var(--mapa-line, rgba(19, 29, 54, 0.14));
+}
+
+/* Aviso bajo un campo del editor (p. ej. URL inválida). */
+.mapa-field-hint {
+  font-size: 11px;
+  color: var(--mapa-muted, #8e9ab4);
+  margin-top: 4px;
+}
+
+/* ── Burbuja "¿Por qué?" (detalle legible del estado del nodo) ──────────────── */
+.mapa-why-msg {
+  font-size: 13px;
+  color: var(--mapa-muted);
+  margin: 4px 0;
+}
+.mapa-why-errmsg {
+  color: var(--sev-err);
+}
+.mapa-why-verdict {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.mapa-why-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+.mapa-why-verdict-text {
+  font-weight: 700;
+  font-size: 15px;
+}
+.mapa-why-explain {
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0;
+}
+.mapa-why-sectitle {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mapa-muted);
+  margin-bottom: 6px;
+}
+.mapa-why-kv {
+  border: 1px solid var(--mapa-line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.mapa-why-kvrow {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 7px 11px;
+  font-size: 12.5px;
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.mapa-why-kvrow + .mapa-why-kvrow {
+  border-top: 1px solid var(--mapa-line);
+}
+.mapa-why-kvrow-status {
+  background: color-mix(in srgb, var(--mapa-line) 45%, transparent);
+  font-weight: 700;
+}
+.mapa-why-k {
+  color: var(--mapa-muted);
+  white-space: nowrap;
+}
+.mapa-why-v {
+  text-align: right;
+  word-break: break-word;
+}
+.mapa-why-more {
+  font-size: 11px;
+  color: var(--mapa-muted);
+  margin-top: 6px;
+}
+.mapa-why-contract {
+  font-size: 12px;
+  color: var(--mapa-muted);
+  background: color-mix(in srgb, var(--mapa-line) 30%, transparent);
+  border-radius: 8px;
+  padding: 9px 11px;
+}
+
+/* Bloque del análisis IA (Davis CoPilot): la respuesta protagonista. */
+.mapa-why-ai {
+  border: 1px solid color-mix(in srgb, #8854ff 38%, var(--mapa-line));
+  background: color-mix(in srgb, #8854ff 7%, transparent);
+  border-radius: 10px;
+  padding: 12px 13px;
+}
+.mapa-why-ai-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, #8854ff 70%, var(--mapa-fg, currentColor));
+  margin-bottom: 8px;
+}
+.mapa-why-ai-loading {
+  margin: 0;
+}
+.mapa-why-ai-text {
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+/* El texto IA viene en Markdown (render con <Markdown> de Strato): ajustamos
+   los márgenes de los bloques para que no quede aire de más arriba/abajo. */
+.mapa-why-ai-text > :first-child {
+  margin-top: 0;
+}
+.mapa-why-ai-text > :last-child {
+  margin-bottom: 0;
+}
+.mapa-why-ai-text p {
+  margin: 0 0 8px;
+}
+.mapa-why-ai-text ul,
+.mapa-why-ai-text ol {
+  margin: 0 0 8px;
+  padding-left: 20px;
+}
+.mapa-why-ai-text li {
+  margin: 2px 0;
+}
+.mapa-why-ai-errwrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+.mapa-why-ai-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin-top: 9px;
+}
+.mapa-why-ai-sources-label {
+  font-size: 11px;
+  color: var(--mapa-muted);
+}
+.mapa-why-ai-source {
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--mapa-line) 55%, transparent);
+}
+.mapa-why-ai-note {
+  margin-top: 9px;
+  font-size: 10.5px;
+  color: var(--mapa-muted);
+  font-style: italic;
+}
+.mapa-why-ai-spacer {
+  flex: 1;
+}
+.mapa-why-refresh {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  background: transparent;
+  color: var(--mapa-muted);
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.mapa-why-refresh:hover {
+  background: color-mix(in srgb, #8854ff 14%, transparent);
+  color: color-mix(in srgb, #8854ff 72%, var(--mapa-fg, currentColor));
+}
+.mapa-why-ai-age {
+  margin-top: 7px;
+  font-size: 10.5px;
+  color: var(--mapa-muted);
+}
+.mapa-why-problems {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  /* Lista completa (sin tope de filas) con scroll propio dentro del modal */
+  max-height: min(320px, 40vh);
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.mapa-why-problem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 11px;
+  border: 1px solid var(--mapa-line);
+  border-radius: 8px;
+}
+.mapa-why-problem-id {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--mapa-muted);
+  background: color-mix(in srgb, var(--mapa-line) 45%, transparent);
+  padding: 1px 6px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+.mapa-why-problem-name {
+  font-size: 12.5px;
+  font-weight: 500;
+  flex: 1 1 auto;
+  min-width: 0;
+  word-break: break-word;
+}
+/* Categoría del problema como chip pequeño (antes texto uppercase suelto). */
+.mapa-why-problem-cat {
+  flex: 0 0 auto;
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--mapa-muted);
+  background: color-mix(in srgb, var(--mapa-line) 45%, transparent);
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+/* Fila CLICKEABLE: abre el problema en Dynatrace. Azul de enlace + hover claro
+   + ícono de "abrir externo" para que se note que es un link. */
+a.mapa-why-problem-link {
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+a.mapa-why-problem-link:hover {
+  background: color-mix(in srgb, var(--dt-colors-text-primary-default, #2f6bff) 9%, transparent);
+  border-color: color-mix(in srgb, var(--dt-colors-text-primary-default, #2f6bff) 45%, var(--mapa-line));
+}
+/* El título del problema va en color NORMAL (el azul masivo hacía ruido); que
+   es clickeable lo dicen el ícono de abrir (azul), el hover y el subrayado. */
+a.mapa-why-problem-link:hover .mapa-why-problem-name {
+  text-decoration: underline;
+}
+a.mapa-why-problem-link svg {
+  flex: 0 0 auto;
+  color: var(--dt-colors-text-primary-default, #2f6bff);
+}
+/* Fila de problema + su botón de Dynatrace Assist (el botón va FUERA del enlace
+   del problema para no anidar dos <a>). */
+.mapa-why-problem-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.mapa-why-problem-row > .mapa-why-problem {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+/* Botón pequeño (solo ícono): abre el Assist preguntando por ESE problema.
+   Compacto, centrado y con el MISMO acento lavanda del botón principal de
+   Assist — así se identifica como clickeable y de la misma familia. */
+.mapa-why-assist-mini {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  background: color-mix(in srgb, #8854ff 8%, transparent);
+  border: 1px solid color-mix(in srgb, #8854ff 35%, var(--mapa-line));
+  border-radius: 8px;
+  color: color-mix(in srgb, #8854ff 75%, var(--mapa-fg, currentColor));
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+.mapa-why-assist-mini:hover {
+  background: color-mix(in srgb, #8854ff 14%, transparent);
+  border-color: color-mix(in srgb, #8854ff 45%, var(--mapa-line));
+  color: color-mix(in srgb, #8854ff 78%, var(--mapa-fg, currentColor));
+}
+/* Botón principal "Analizar con Dynatrace Assist" (cierre de la burbuja). */
+/* Los disparadores de Assist son <button> (copian al portapapeles): resetear
+   la apariencia de botón para que hereden el look de la clase. */
+button.mapa-why-assist,
+button.mapa-why-assist-mini {
+  font: inherit;
+  cursor: pointer;
+  text-align: inherit;
+}
+/* Fila de acciones al cierre de la burbuja: Assist (primario) + entidad. */
+.mapa-why-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.mapa-why-assistnote {
+  font-size: 11.5px;
+  color: var(--mapa-muted);
+  margin-top: 6px;
+}
+.mapa-why-assist {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 13px;
+  border: 1px solid color-mix(in srgb, #8854ff 45%, var(--mapa-line));
+  border-radius: 8px;
+  background: color-mix(in srgb, #8854ff 10%, transparent);
+  color: color-mix(in srgb, #8854ff 82%, var(--mapa-fg, currentColor));
+  font-size: 12.5px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+.mapa-why-assist:hover {
+  background: color-mix(in srgb, #8854ff 18%, transparent);
+  border-color: color-mix(in srgb, #8854ff 65%, var(--mapa-line));
+}
+.mapa-why-assist svg {
+  flex: 0 0 auto;
+}
+
+/* Tarjeta HONESTA (sin evidencia → sin IA): estado declarado / no determinable.
+   Neutra (no la caja morada de la IA), con el botón "Investigar a fondo". */
+.mapa-why-card {
+  border: 1px solid var(--mapa-line);
+  background: color-mix(in srgb, var(--mapa-line) 22%, transparent);
+  border-radius: 10px;
+  padding: 12px 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-start;
+}
+.mapa-why-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+.mapa-why-card-head svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: var(--mapa-muted);
+}
+.mapa-why-details {
+  font-size: 12px;
+}
+.mapa-why-details > summary {
+  cursor: pointer;
+  color: var(--mapa-muted);
+  user-select: none;
+}
+.mapa-why-entity-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--mapa-muted);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+.mapa-why-entity-link:hover {
+  color: inherit;
+}
+.mapa-why-dql {
+  margin: 8px 0 0;
+  padding: 10px 11px;
+  border: 1px solid var(--mapa-line);
+  border-radius: 8px;
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11.5px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: auto;
+}
+
+.sev-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 9px;
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  color: var(--mapa-muted);
+}
+.sev-meta-spacer {
+  flex: 1;
+}
+.sev-count {
+  font-weight: 600;
+}
+.sev-count-ok {
+  color: var(--sev-ok);
+}
+.sev-count-warn {
+  color: var(--sev-warn);
+}
+.sev-count-err {
+  color: var(--sev-err);
+}
+.sev-time {
+  opacity: 0.85;
+}
+.sev-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  background: var(--sev, var(--sev-unk));
+  box-shadow: 0 0 9px var(--sev, transparent);
+}
+.sev-handle {
+  width: 9px;
+  height: 9px;
+  background: var(--mapa-muted);
+  border: 2px solid var(--mapa-handle-border);
+}
+.sev-selected {
+  /* Violeta primario de Dynatrace (igual que el mapa seleccionado en la lista),
+     no el cyan propio. Se ve en cada nodo de una multi-selección. */
+  outline: 2px solid var(--dt-colors-border-primary-default, #464cce);
+  outline-offset: 3px;
+}
+
+/* ── Agrupador: marco contenedor de nodos ──────────────────────────────────────
+   Rectángulo de esquinas redondeadas, fondo casi transparente (un tinte del color
+   de estado) y borde de 2px con el PEOR estado de sus miembros. El marco vive por
+   DEBAJO de los nodos (zIndex -1 desde MapCanvas), así que los miembros se ven
+   encima. Sin miembros (o todos neutros) queda en el gris "unknown". */
+
+/* OJO — "group" es un tipo de nodo INTEGRADO de React Flow y su hoja de estilos
+   le pinta lo suyo a `.react-flow__node-group`: ancho fijo de 150px, padding de
+   10px, borde y fondo oscuros. Eso salía como un CUADRO NEGRO de esquinas rectas
+   corrido respecto al marco (el padding desplazaba nuestro div) y, peor, dejaba
+   el CONTENEDOR medido en 150px → el área de adopción no correspondía al marco.
+   Aquí se anulan todos esos defaults para que el contenedor sea EXACTAMENTE el
+   width/height del nodo y el único rectángulo visible sea nuestro marco. */
+.react-flow__node-group {
+  padding: 0;
+  width: auto;
+  border: none;
+  border-radius: 0;
+  background-color: transparent;
+  color: inherit;
+  font-size: inherit;
+  text-align: left;
+  box-shadow: none;
+}
+/* NOTA sobre las conexiones que cruzan el marco: en React Flow v12 nodos y
+   conexiones comparten capa y se ordenan por z-index; el marco va en z -1 y las
+   conexiones en 0 → las líneas pintan ENCIMA del marco y siguen siendo
+   clicables. No hace falta (ni funciona) anular pointer-events del contenedor:
+   eso desconecta el drag del nodo y el arrastre termina paneando el lienzo. */
+.react-flow__node-group.selectable:hover,
+.react-flow__node-group.selectable.selected,
+.react-flow__node-group.selectable:focus,
+.react-flow__node-group.selectable:focus-visible {
+  box-shadow: none;
+}
+
+.mapa-group {
+  position: relative;
+  /* El marco ES el contenedor del nodo: se estira al width/height que le da
+     React Flow, así que lo que se ve y el área de adopción son lo mismo. */
+  width: 100%;
+  height: 100%;
+  /* Red de seguridad: si un documento alterado llegara sin width/height, el
+     contenedor queda en `auto` y el marco se colapsaría a 0. */
+  min-width: 200px;
+  min-height: 140px;
+  box-sizing: border-box;
+  border-radius: 16px;
+  border: 2px solid var(--sev-unk);
+  background: color-mix(in srgb, var(--sev-unk) 6%, transparent);
+  transition: border-color 220ms ease, background-color 220ms ease, box-shadow 220ms ease;
+}
+.mapa-group-unknown {
+  border-color: color-mix(in srgb, var(--sev-unk) 55%, transparent);
+  background: color-mix(in srgb, var(--sev-unk) 6%, transparent);
+}
+.mapa-group-ok {
+  border-color: color-mix(in srgb, var(--sev-ok) 60%, transparent);
+  background: color-mix(in srgb, var(--sev-ok) 6%, transparent);
+}
+.mapa-group-warn {
+  border-color: color-mix(in srgb, var(--sev-warn) 65%, transparent);
+  background: color-mix(in srgb, var(--sev-warn) 7%, transparent);
+}
+.mapa-group-err {
+  border-color: color-mix(in srgb, var(--sev-err) 70%, transparent);
+  background: color-mix(in srgb, var(--sev-err) 7%, transparent);
+}
+
+/* Papelera fantasma: dentro del marco, esquina superior derecha. Solo se ve al
+   pasar el mouse por el grupo (su borde/título) o con el grupo seleccionado. */
+.mapa-group-trash {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 8px;
+  border: 1px solid var(--mapa-line);
+  background: var(--mapa-card);
+  color: var(--mapa-muted);
+  cursor: pointer;
+  box-shadow: 0 2px 6px var(--mapa-shadow);
+  pointer-events: all;
+  opacity: 0;
+  transition: opacity 160ms ease, color 160ms ease, border-color 160ms ease;
+}
+.mapa-group:hover .mapa-group-trash,
+.mapa-group-selected .mapa-group-trash {
+  opacity: 0.55;
+}
+/* Hover DIRECTO sobre el botón: opacidad plena y tinte de peligro. */
+.mapa-group .mapa-group-trash:hover {
+  opacity: 1;
+  color: var(--sev-err);
+  border-color: color-mix(in srgb, var(--sev-err) 45%, transparent);
+}
+
+/* Chip "+" cuando el grupo NO tiene nombre (solo en edición): mismo puesto de la
+   píldora del título; tenue hasta que se le pasa el mouse. Click → editar nombre. */
+.mapa-group-addname {
+  position: absolute;
+  top: -13px;
+  left: 16px;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid var(--mapa-line);
+  background: var(--mapa-card);
+  color: var(--mapa-muted);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 2px 6px var(--mapa-shadow);
+  opacity: 0.45;
+  transition: opacity 160ms ease, color 160ms ease;
+}
+.mapa-group-addname:hover {
+  opacity: 1;
+  color: var(--mapa-text);
+}
+
+/* Título: píldora pequeña montada sobre el borde, arriba-izquierda. */
+.mapa-group-title,
+.mapa-group-input {
+  position: absolute;
+  top: -13px;
+  left: 16px;
+  max-width: calc(100% - 32px);
+  box-sizing: border-box;
+  padding: 3px 11px;
+  border-radius: 999px;
+  background: var(--mapa-card);
+  border: 1px solid var(--mapa-line);
+  color: var(--mapa-text);
+  font-size: 12px;
+  line-height: 1.45;
+  box-shadow: 0 2px 6px var(--mapa-shadow);
+}
+.mapa-group-title {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mapa-group-title-edit {
+  cursor: text;
+}
+.mapa-group-input {
+  width: 200px;
+  outline: none;
+  border-color: var(--sev-accent);
+  font-family: inherit;
+}
+
+/* Seleccionado: el realce va sobre el MARCO mismo (box-shadow, que sí sigue las
+   esquinas redondeadas), no un `outline` rectangular desalineado. */
+.mapa-group-selected {
+  box-shadow: 0 0 0 2px var(--dt-colors-border-primary-default, #464cce);
+}
+
+/* Va a recibir el nodo que se está arrastrando: marco COMPLETO resaltado (borde
+   de acento + fondo un poco más presente) para que se vea claro dónde va a caer. */
+.mapa-group-hover {
+  border-color: var(--sev-accent);
+  background: color-mix(in srgb, var(--sev-accent) 14%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--sev-accent) 45%, transparent);
+}
+
+/* Manija de redimensionado: una sola, en la esquina inferior derecha. Libre (sin
+   relación de aspecto). Solo se monta en modo edición (ver GroupNode).
+   La clase lleva .bottom.right a propósito: el default de React Flow para esa
+   esquina tiene 4 clases de especificidad y hay que ganarle para reposicionarla. */
+.mapa-group-resize.react-flow__resize-control.handle.bottom.right {
+  width: 16px;
+  height: 16px;
+  border: none;
+  background: transparent;
+  border-radius: 0;
+  left: 100%;
+  top: 100%;
+  /* Esquina interna del marco (no montada sobre el borde). */
+  translate: calc(-100% - 5px) calc(-100% - 5px);
+  pointer-events: all;
+  /* Solo aparece al pasar el mouse por el grupo o con el grupo seleccionado. */
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+.mapa-group:hover .mapa-group-resize.react-flow__resize-control.handle.bottom.right,
+.mapa-group-selected .mapa-group-resize.react-flow__resize-control.handle.bottom.right {
+  opacity: 1;
+}
+.mapa-group-resize-grip {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-right: 3px solid var(--sev-accent);
+  border-bottom: 3px solid var(--sev-accent);
+  border-bottom-right-radius: 7px;
+  opacity: 0.55;
+}
+.mapa-group-resize.react-flow__resize-control.handle:hover .mapa-group-resize-grip {
+  opacity: 1;
+}
+/* El marco no se arrastra desde la manija (si no, redimensionar movería el grupo). */
+.mapa-group-resize.react-flow__resize-control.handle.bottom.right {
+  cursor: nwse-resize;
+}
+
+/* Tira y afloje: un miembro propio va camino a la salida.
+   "hold" = aún dentro del umbral: el marco lo RETIENE (acento firme, como diciendo
+   "te devuelvo"). "free" = cruzó el umbral: el marco "abre la mano" (borde
+   punteado y apagado — al soltar, el nodo queda libre). */
+.mapa-group-pull-hold {
+  border-color: var(--sev-accent);
+  border-style: solid;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--sev-accent) 35%, transparent);
+}
+.mapa-group-pull-free {
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--mapa-muted) 60%, transparent);
+  background: transparent;
+  box-shadow: none;
+}
+
+/* Destello al adoptar/liberar un miembro: el marco pulsa en el color de acento. */
+.mapa-group-flash {
+  animation: mapa-group-flash 600ms ease-out;
+}
+@keyframes mapa-group-flash {
+  0% {
+    border-color: var(--sev-accent);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--sev-accent) 45%, transparent);
+  }
+  70% {
+    border-color: var(--sev-accent);
+    box-shadow: 0 0 0 12px color-mix(in srgb, var(--sev-accent) 0%, transparent);
+  }
+  100% {
+    box-shadow: none;
+  }
+}
+
+/* Llegada suave del miembro a su celda del agrupador. ReactFlow posiciona los
+   nodos con `transform`, así que la transición va sobre él. La clase es TEMPORAL
+   (la quita MapCanvas): con ella puesta, el arrastre normal se sentiría "pegajoso". */
+.react-flow__node.mapa-node-settle {
+  transition: transform 250ms ease;
+}
+
+/* Por severidad: color desde la variable de tema (claro/oscuro) + glow escalado */
+.sev-ok {
+  --sev: var(--sev-ok);
+  border-color: color-mix(in srgb, var(--sev-ok) 50%, transparent);
+  --glow-dur: 4.2s;
+}
+.sev-warn {
+  --sev: var(--sev-warn);
+  border-color: color-mix(in srgb, var(--sev-warn) 55%, transparent);
+  --glow-dur: 2.3s;
+}
+.sev-err {
+  --sev: var(--sev-err);
+  border-color: color-mix(in srgb, var(--sev-err) 70%, transparent);
+  --glow-dur: 1.15s;
+}
+.sev-unknown {
+  --sev: var(--sev-unk);
+  border-color: color-mix(in srgb, var(--sev-unk) 40%, transparent);
+}
+
+.sev-ok .sev-badge {
+  background: color-mix(in srgb, var(--sev-ok) 16%, transparent);
+  color: var(--sev-ok);
+}
+.sev-warn .sev-badge {
+  background: color-mix(in srgb, var(--sev-warn) 16%, transparent);
+  color: var(--sev-warn);
+}
+.sev-err .sev-badge {
+  background: color-mix(in srgb, var(--sev-err) 18%, transparent);
+  color: var(--sev-err);
+}
+.sev-unknown .sev-badge {
+  background: color-mix(in srgb, var(--sev-unk) 16%, transparent);
+  color: var(--sev-unk);
+}
+
+/* Glow por severidad en una CAPA propia (::after).
+   ANTES: se animaba `box-shadow` directamente sobre el nodo. box-shadow es lo más
+   caro de animar — NO se compone en GPU, así que el navegador repintaba cada nodo
+   en CADA frame, sin parar, incluso con la app quieta. Eso dejaba menos margen al
+   hilo principal y las acciones se sentían con unos ms de retraso.
+   AHORA: el halo de color se pinta UNA sola vez y solo se le animan `opacity` y
+   `transform: scale`, que la GPU compone sin repintar. El nivel fija el radio/
+   opacidad MÁXIMOS (el pico del pulso = idéntico al look original); el pulso baja
+   la opacidad a la mitad (= la opacidad mínima original: 14→28 y 30→60, ambos 0.5)
+   y encoge un pelín la capa (≈ el radio mínimo original). */
+.sev-node.mapa-glow-medium::after,
+.sev-node.mapa-glow-high::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  /* DETRÁS del nodo: el fondo blanco opaco de .sev-node tapa la parte interna del
+     halo (igual que un box-shadow directo, que se pinta tras el elemento). Sin
+     esto, la capa queda ENCIMA y, al animarle la escala, su borde difuminado barre
+     sobre la cara del nodo → parecía que el cuadrito blanco "respiraba". Funciona
+     porque .sev-node no crea contexto de apilamiento (solo position: relative), así
+     que z-index:-1 se resuelve detrás de su fondo, dentro del wrapper del nodo. */
+  z-index: -1;
+  animation-name: sevGlowPulse;
+  animation-duration: var(--glow-dur, 2.3s);
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+/* Nivel MEDIO (por defecto): halo igual al diseño original (radio/opacidad pico). */
+.sev-node.mapa-glow-medium::after {
+  box-shadow: 0 0 12px color-mix(in srgb, var(--sev, var(--sev-unk)) 28%, transparent);
+}
+
+/* Nivel ALTO: halo notablemente más fuerte. */
+.sev-node.mapa-glow-high::after {
+  box-shadow: 0 0 26px color-mix(in srgb, var(--sev, var(--sev-unk)) 60%, transparent);
+}
+
+@keyframes sevGlowPulse {
+  0%,
+  100% {
+    opacity: 0.5;
+    transform: scale(0.95);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Respeta "reducir movimiento" del sistema: halo fijo a intensidad plena, sin pulso. */
+@media (prefers-reduced-motion: reduce) {
+  .sev-node.mapa-glow-medium::after,
+  .sev-node.mapa-glow-high::after {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Nivel NINGUNO (.mapa-glow-none): no genera halo; el nodo conserva su sombra base
+   estática (.sev-node ya la lleva). Por eso no necesita regla propia. */
+
+/* ── Título flotante (nodo etiqueta) ── */
+/* Bloque de título markdown: contenedor que aloja el Markdown de Strato (en
+   reposo) o el textarea de edición. La tipografía/colores del contenido los pone
+   el componente Markdown (tokens Strato, claro/oscuro). */
+.mapa-label {
+  min-width: 90px;
+  /* SIN ancho máximo: el bloque crece hasta su línea más larga y se rompe SOLO donde
+     el usuario mete un salto de línea (antes un cap de 520px cortaba títulos largos a
+     2 renglones). Como el nodo es shrink-to-fit, el ancho = la línea más ancha. */
+  max-width: none;
+  /* Padding mínimo solo para el área de clic; sin borde/fondo: el título va SUELTO,
+     se maneja como título (NO una tarjeta/marco como las imágenes). */
+  padding: 2px 4px;
+  overflow-wrap: anywhere;
+}
+/* Al seleccionar NO se dibuja un marco: la toolbar flotante encima es la pista de
+   selección. (En edición el textarea sí tiene su propio borde, eso es aparte.) */
+/* El componente Markdown de Strato le pone margin-top: 24px a cada encabezado; al
+   apilar varios títulos quedan huecos enormes. Lo apretamos para que se vean como
+   líneas de un título. (.mapa-label h1 = 0,1,1 > la clase de Strato 0,1,0.) */
+.mapa-label h1,
+.mapa-label h2,
+.mapa-label h3,
+.mapa-label h4,
+.mapa-label h5,
+.mapa-label h6 {
+  margin-top: 0;
+  margin-bottom: 0.15em;
+}
+/* Escala proporcional del markdown renderizado (~+2pt). Se hace con zoom para que
+   suba TODO en proporción (texto, encabezados, código), ya que Strato fija los
+   tamaños en px. No afecta el textarea de edición (que va aparte). */
+.mapa-md {
+  zoom: 1.15;
+}
+/* Code block: que la caja mida el ANCHO DEL CÓDIGO (no todo el nodo) y el botón de
+   copiar quede a su derecha SIN taparlo. Strato lo arma como flex [código][copiar];
+   con fit-content la caja se encoge al código y el botón queda al lado (estático,
+   no sticky/encima). */
+.mapa-label [data-dt-component="CodeSnippet"] {
+  width: fit-content;
+  max-width: 100%;
+}
+.mapa-label [data-dt-component="CodeSnippet"] > div:last-child {
+  position: static;
+}
+.mapa-label-empty {
+  color: var(--mapa-list-text);
+  opacity: 0.45;
+  font-style: italic;
+}
+/* Textarea con la fuente markdown (monoespaciada, más chica, multilínea). El ancho
+   y el alto los fija el componente con `cols`/`rows` según el contenido (no hay
+   ancho fijo). `resize: none` quita el agarre nativo de redimensionar: al arrastrarlo
+   se salía del modo edición, y además ya no hace falta porque el editor auto-crece. */
+.mapa-label-textarea {
+  min-height: 28px;
+  box-sizing: content-box;
+  resize: none;
+  border: 1px solid var(--mapa-delim);
+  border-radius: 8px;
+  background: var(--mapa-window-bg);
+  color: var(--mapa-content-text);
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 8px 10px;
+  outline: none;
+}
+.mapa-label-textarea:focus {
+  border-color: var(--mapa-sel-text);
+}
+
+/* ── Toolbar flotante anclada al título (NodeToolbar) ── */
+.mapa-label-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 6px;
+  background: var(--mapa-window-bg);
+  border: 1px solid var(--mapa-delim);
+  border-radius: 10px;
+  box-shadow: 0 4px 16px var(--mapa-shadow);
+}
+.mapa-label-tb-sep {
+  width: 1px;
+  align-self: stretch;
+  margin: 2px 4px;
+  background: var(--mapa-delim);
+}
+/* A− / A+ (escala del bloque de texto): glifo de texto, no ícono. */
+.mapa-label-scalebtn {
+  width: auto;
+  padding: 0 7px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.mapa-label-scalebtn:disabled {
+  opacity: 0.35;
+  cursor: default;
+  background: transparent;
+}
+/* Rótulo "DQL" en línea con una raya de estado propio: el rect tapa la raya con el
+   fondo del lienzo (hueco) y el texto va encima, del color del estado. */
+.mapa-edge-dql rect {
+  fill: var(--mapa-bg-solid);
+}
+.mapa-edge-dql text {
+  font: 500 9px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.08em;
+  text-anchor: middle;
+  user-select: none;
+}
+.mapa-label-tb-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--mapa-content-text);
+  cursor: pointer;
+}
+.mapa-label-tb-btn:hover {
+  background: var(--mapa-btn-hover);
+}
+/* Botones "Editar" y "Listo": mismo color (sombreado), por tema. */
+.mapa-label-editbtn,
+.mapa-label-donebtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.mapa--light .mapa-label-editbtn,
+.mapa--light .mapa-label-donebtn {
+  background: #5b5c7f;
+  color: #ffffff !important;
+}
+.mapa--dark .mapa-label-editbtn,
+.mapa--dark .mapa-label-donebtn {
+  background: #a0a1be;
+  color: #ffffff !important;
+}
+/* El ícono (EditIcon/CheckmarkIcon) toma el mismo blanco. */
+.mapa-label-editbtn svg,
+.mapa-label-donebtn svg {
+  color: #ffffff;
+  fill: currentColor;
+}
+.mapa-label-editbtn:hover,
+.mapa-label-donebtn:hover {
+  filter: brightness(0.94);
+}
+
+/* Popup flotante "Editar" de una RAYA: se posiciona en la mitad de la conexión
+   (transform inline en coords del lienzo). La capa EdgeLabelRenderer tiene
+   pointer-events:none, así que el popup los reactiva para poder pulsarlo. */
+.mapa-edge-popup {
+  position: absolute;
+  pointer-events: all;
+  z-index: 6;
+}
+/* Chip de VALOR en la mitad de una raya: todo del color del estado (--chip-color),
+   fondo del lienzo. Jerarquía: etiqueta chiquita en versalitas → número en negrita
+   → sufijo más liviano. */
+.mapa-edge-chip {
+  position: absolute;
+  pointer-events: all;
+  z-index: 5;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--mapa-bg-solid);
+  border: 1.5px solid var(--chip-color, var(--sev-unk));
+  color: var(--chip-color, var(--sev-unk));
+  font-size: 11.5px;
+  line-height: 1.25;
+  white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  user-select: none;
+}
+.mapa-edge-chip-clickable {
+  cursor: pointer;
+  transition: box-shadow 0.12s ease;
+}
+.mapa-edge-chip-clickable:hover {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--chip-color) 22%, transparent);
+}
+.mapa-edge-chip-label {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.78;
+}
+.mapa-edge-chip-value {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.mapa-edge-chip-unit {
+  font-size: 10px;
+  opacity: 0.85;
+}
+/* Vista previa del chip dentro del editor (resultado de "Probar"). */
+.mapa-edge-chip-static {
+  position: static;
+  --chip-color: var(--dt-colors-text-neutral-default, var(--mapa-text));
+  background: transparent;
+}
+/* Sección del editor de raya separada por una regla fina (jerarquía). */
+.mapa-edge-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 14px;
+  border-top: 1px solid var(--dt-colors-border-neutral-default, #c5c8d6);
+}
+.mapa-edge-valuemeta > * {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.mapa-fieldhint {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--dt-colors-text-neutral-subdued, var(--mapa-muted));
+}
+/* Despliegue animado de un bloque (0fr → 1fr): el envoltorio siempre existe. */
+.mapa-reveal {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition: grid-template-rows 0.24s ease, opacity 0.24s ease;
+}
+.mapa-reveal-open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+.mapa-reveal > div {
+  overflow: hidden;
+  min-height: 0;
+}
+.mapa-reveal-inner {
+  padding-top: 6px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mapa-reveal {
+    transition: none;
+  }
+}
+
+/* (Regla .mapa-toolbar/.mapa-counts/.mapa-legend eliminada: clases sin uso en el
+   código; arrastraban un backdrop-filter: blur costoso que no pintaba nada.) */
+.mapa-btn {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 13px;
+  border-radius: 9px;
+  border: 1px solid var(--mapa-line);
+  background: transparent;
+  color: var(--mapa-text);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.mapa-btn:hover {
+  border-color: var(--sev-accent);
+}
+.mapa-btn-primary {
+  border: none;
+  background: var(--sev-accent);
+  color: #03222b;
+}
+.mapa--dark .mapa-btn-primary {
+  color: #03222b;
+}
+.mapa-counts,
+.mapa-legend {
+  font-size: 11px;
+  gap: 14px;
+}
+.mapa-count,
+.mapa-leg {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.mapa-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.mapa-dot-ok { background: var(--sev-ok); box-shadow: 0 0 8px var(--sev-ok); }
+.mapa-dot-warn { background: var(--sev-warn); box-shadow: 0 0 8px var(--sev-warn); }
+.mapa-dot-err { background: var(--sev-err); box-shadow: 0 0 8px var(--sev-err); }
+.mapa-dot-unk { background: var(--sev-unk); }
+
+/* Indicador de guardado en la barra de herramientas */
+.mapa-save {
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.mapa-save::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.mapa-save-saving {
+  color: var(--sev-warn);
+  background: color-mix(in srgb, var(--sev-warn) 14%, transparent);
+}
+.mapa-save-saved {
+  color: var(--sev-ok);
+  background: color-mix(in srgb, var(--sev-ok) 14%, transparent);
+}
+.mapa-save-error {
+  color: var(--sev-err);
+  background: color-mix(in srgb, var(--sev-err) 16%, transparent);
+}
+
+/* Selector de íconos del editor de nodos.
+   El Modal vive en un portal fuera de .mapa--*, así que NO sirven las variables
+   --mapa-*; usamos tokens de tema de Strato (--dt-colors-*). */
+.iconpk {
+  position: relative;
+}
+.iconpk-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: auto;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--dt-colors-border-neutral-default, #c5c8d6);
+  background: var(--dt-colors-background-container-neutral-default, transparent);
+  text-align: left;
+}
+.iconpk-trigger:hover {
+  border-color: var(--dt-colors-border-primary-default, #0894c2);
+}
+.iconpk-current {
+  display: inline-flex;
+  width: 26px;
+  height: 26px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  background: var(--dt-colors-background-container-neutral-emphasized, rgba(127, 127, 127, 0.12));
+  flex: 0 0 auto;
+}
+.iconpk-current-name {
+  font-size: 13px;
+  font-weight: 600;
+  flex: 0 0 auto;
+}
+.iconpk-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  opacity: 0.6;
+  flex: 0 0 auto;
+  padding-left: 2px;
+}
+.iconpk-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 40;
+  width: 320px;
+  max-width: 80vw;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid var(--dt-colors-border-neutral-default, #c5c8d6);
+  background: var(--dt-colors-background-container-neutral-default, #fff);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.3);
+}
+.iconpk-search {
+  margin-bottom: 8px;
+}
+.iconpk-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.iconpk-tab {
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  color: inherit;
+  cursor: pointer;
+  padding: 4px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--dt-colors-border-neutral-default, #c5c8d6);
+  background: transparent;
+  opacity: 0.75;
+}
+.iconpk-tab:hover {
+  opacity: 1;
+  border-color: var(--dt-colors-border-neutral-accent, #a1a5b7);
+}
+.iconpk-tab-on {
+  opacity: 1;
+  color: var(--dt-colors-text-neutral-default, var(--mapa-text));
+  border-color: var(--dt-colors-border-neutral-default, #c5c8d6);
+  background: var(--dt-colors-background-surface-default, #fff);
+  box-shadow: var(--dt-box-shadows-surface-raised-rest, 0 1px 2px rgba(45, 46, 78, 0.12));
+}
+.iconpk-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 2px;
+}
+.iconpk-cell {
+  aspect-ratio: 1 / 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
+  cursor: pointer;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: var(--dt-colors-background-container-neutral-emphasized, rgba(127, 127, 127, 0.08));
+}
+.iconpk-cell:hover {
+  border-color: var(--dt-colors-border-neutral-accent, #a1a5b7);
+}
+.iconpk-cell-on {
+  border-color: var(--dt-colors-border-neutral-accent, #8a8fa3);
+  background: var(--dt-colors-background-container-neutral-emphasized, rgba(127, 127, 127, 0.16));
+}
+.iconpk-empty,
+.iconpk-note {
+  grid-column: 1 / -1;
+  font-size: 11px;
+  opacity: 0.7;
+  padding: 8px 2px 2px;
+}
+
+/* Segmentado de tamaño del nodo (editor) — compacto, alineado a la izquierda.
+   align-self/fit-content evitan que el FormField (flex column) lo estire. */
+.size-seg {
+  display: inline-flex;
+  align-self: flex-start;
+  width: fit-content;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 7px;
+  border: 1px solid var(--dt-colors-border-neutral-default, #c5c8d6);
+  background: var(--dt-colors-background-container-neutral-default, transparent);
+}
+.size-opt {
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  color: inherit;
+  cursor: pointer;
+  padding: 3px 9px;
+  border-radius: 5px;
+  border: 1px solid transparent;
+  background: transparent;
+}
+.size-opt:hover {
+  border-color: var(--dt-colors-border-neutral-accent, #a1a5b7);
+}
+.size-opt-on {
+  color: var(--dt-colors-text-neutral-default, var(--mapa-text));
+  border-color: var(--dt-colors-border-neutral-default, #c5c8d6);
+  background: var(--dt-colors-background-surface-default, #fff);
+  box-shadow: var(--dt-box-shadows-surface-raised-rest, 0 1px 2px rgba(45, 46, 78, 0.12));
+}
+
+/* Enlace en vivo del guardian (editor de nodo) */
+.gmatch {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 12px;
+}
+.gmatch-muted {
+  opacity: 0.65;
+}
+.gmatch-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+
+/* Vista previa en el modal de ajustes */
+.settings-preview {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--dt-colors-border-neutral-default, #c5c8d6);
+  background: var(--dt-colors-background-container-neutral-emphasized, rgba(127, 127, 127, 0.08));
+}
+
+/* Slider del editor de título y barra de opacidad de imagen: acento gris neutro
+   (no el azul por defecto del navegador ni el cyan del tema). */
+.mapa-range {
+  width: 100%;
+  accent-color: var(--dt-colors-text-neutral-default, #8c8c8c);
+  cursor: pointer;
+}
+
+/* ── Acciones del AppHeader global (Nuevo mapa / Importar) ──
+   AppHeader.ActionItems alinea su contenido a la DERECHA por diseño
+   (justify-content: flex-end en DOS niveles de Flex anidados + flexGrow:1), por eso
+   un style/marginRight no los mueve. Los forzamos a la IZQUIERDA, pegados al logo,
+   como "+ Notebook"/"Upload" en Notebooks. Se identifica por esta className propia
+   (estable), no por las clases hasheadas de Strato. Afecta el Flex externo y el medio. */
+.mapa-headeractions,
+.mapa-headeractions > * {
+  justify-content: flex-start !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Menú de COMPARTIR (estilo Share de Notebooks): avatares violetas, filas con
+   nombre + correo, rol segmentado (Solo lectura / Edición) y lista de acceso.
+   Usa el tinte primary de Strato (mismo violeta de la fila seleccionada).
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* Buscar e invitar */
+.mapa-share-add {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.mapa-share-addrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.mapa-share-search {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.mapa-share-input {
+  font: inherit;
+  font-size: 13px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border-radius: 6px;
+  color: var(--dt-colors-text-neutral-default, var(--mapa-text));
+  background: var(--dt-colors-background-base-default, #fff);
+  border: 1px solid var(--dt-colors-border-neutral-default, #c5c8d6);
+}
+.mapa-share-input:focus {
+  outline: none;
+  border-color: var(--dt-colors-border-primary-accent, #464cce);
+}
+
+/* Resultados de la búsqueda (dropdown) */
+.mapa-share-results {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 4px;
+  border-radius: 8px;
+  background: var(--dt-colors-background-base-default, #fff);
+  border: 1px solid var(--dt-colors-border-neutral-default, #c5c8d6);
+  box-shadow: 0 8px 24px rgba(20, 22, 45, 0.18);
+}
+.mapa-share-result {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  padding: 7px 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+}
+.mapa-share-result:hover {
+  background: var(--dt-colors-background-container-primary-default, #f1f2f9);
+}
+.mapa-share-result-empty {
+  padding: 9px 8px;
+  font-size: 12px;
+  color: var(--dt-colors-text-neutral-subdued, var(--mapa-muted));
+}
+
+/* Ícono de persona a la izquierda (simple, sin círculo, como Notebooks) */
+.mapa-share-ico {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  color: var(--dt-colors-text-neutral-subdued, var(--mapa-muted));
+}
+
+/* Identidad (nombre + correo) */
+.mapa-share-id {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1 1 auto;
+  line-height: 1.25;
+}
+.mapa-share-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--dt-colors-text-neutral-default, var(--mapa-text));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Nombre + etiqueta "Grupo" en una sola línea */
+.mapa-share-nameline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+/* Pill discreta para distinguir un grupo SSO de una persona */
+.mapa-share-grouptag {
+  flex: 0 0 auto;
+  font-size: 11px;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--mapa-delim, var(--mapa-line));
+  color: var(--dt-colors-text-neutral-subdued, var(--mapa-muted));
+}
+.mapa-share-email {
+  font-size: 11.5px;
+  color: var(--dt-colors-text-neutral-subdued, var(--mapa-muted));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Avisar por correo */
+.mapa-share-notify {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--dt-colors-text-neutral-subdued, var(--mapa-muted));
+  cursor: pointer;
+}
+
+/* Sección "Personas con acceso" */
+.mapa-share-section {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.mapa-share-section-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--dt-colors-text-neutral-subdued, var(--mapa-muted));
+  margin-bottom: 4px;
+}
+.mapa-share-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 4px;
+  border-radius: 6px;
+}
+.mapa-share-row:hover {
+  background: var(--dt-colors-background-container-neutral-default, rgba(127, 127, 127, 0.06));
+}
+.mapa-share-ownertag {
+  font-size: 12px;
+  color: var(--dt-colors-text-neutral-subdued, var(--mapa-muted));
+  padding-right: 6px;
+}
+.mapa-share-hint {
+  padding: 4px 4px 2px;
+  font-size: 12px;
+  color: var(--dt-colors-text-neutral-subdued, var(--mapa-muted));
+}
+
+/* Rol como DESPLEGABLE (Solo lectura / Edición), igual que "Can view/Can edit"
+   de Notebooks: botón compacto con ícono + etiqueta + chevron. */
+.mapa-roledd {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  padding: 5px 8px;
+  border-radius: 6px;
+  color: var(--dt-colors-text-neutral-default, var(--mapa-text));
+  /* Ghost: sin borde ni fondo (como el "Can view ⌄" de Notebooks); el fondo solo
+     aparece sutil al pasar el mouse. */
+  background: transparent;
+  border: 1px solid transparent;
+}
+.mapa-roledd-md {
+  font-size: 12.5px;
+}
+.mapa-roledd-sm {
+  font-size: 12px;
+  padding: 4px 6px;
+}
+.mapa-roledd:hover:not(:disabled) {
+  background: var(--dt-colors-background-container-neutral-default, rgba(127, 127, 127, 0.1));
+}
+.mapa-roledd:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+.mapa-roledd-caret {
+  display: inline-flex;
+  color: var(--dt-colors-text-neutral-subdued, var(--mapa-muted));
+  transition: transform 0.15s ease;
+}
+.mapa-roledd-caret-open {
+  transform: rotate(180deg);
+}
+/* Ítem seleccionado del desplegable: violeta + barra RECTA a la izquierda.
+   Se dibuja con un ::before sin redondeo (como en Notebooks). Antes era un
+   box-shadow inset, que seguía las esquinas redondeadas del ítem y hacía que
+   la barra se viera curva en las puntas. */
+.mapa-roledd-item-on {
+  position: relative;
+  color: var(--dt-colors-text-primary-default, #464cce) !important;
+}
+.mapa-roledd-item-on::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--dt-colors-text-primary-default, #464cce);
+}
+/* Opción "Quitar acceso": separada con un divisor arriba (como en Notebooks). */
+.mapa-roledd-remove {
+  margin-top: 4px;
+  border-top: 1px solid var(--dt-colors-border-neutral-default, #c5c8d6);
+}
+
+/* Botón "Eliminar imagen": solo ícono, sin borde (gris, hover sutil). */
+.mapa-imgdelbtn {
+  font-size: 16px;
+  line-height: 1;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: none;
+  background: transparent;
+  color: var(--mapa-muted);
+  border-radius: 8px;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.mapa-imgdelbtn:hover {
+  color: var(--mapa-text);
+  background: color-mix(in srgb, var(--sev-accent) 14%, transparent);
+}
+
+/* Filas de Ajustes al estilo Settings de Dynatrace: etiqueta a la izquierda,
+   control a la derecha, misma altura en todas. */
+.mapa-set-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin-top: 0;
+}
+.mapa-set-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 30px;
+}
+/* Variante con aire entre filas, para controles más altos (segmented, picker). */
+.mapa-set-rows-roomy {
+  gap: 10px;
+}
+.mapa-set-rowlabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--dt-colors-text-neutral-default, var(--mapa-text));
+}
+/* Dot de severidad plano (sin brillo): indicador, no adorno. */
+.mapa-glow-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  background: currentColor;
+}
+
+/* Botón "Restaurar el prompt por defecto" (Ajustes): botón de verdad (borde +
+   hover), no texto plano. Deshabilitado cuando no hay prompt personalizado o
+   el análisis con IA está encendido. */
+.mapa-assist-restore {
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--dt-colors-border-neutral-default, #c5c8d6);
+  background: transparent;
+  color: var(--dt-colors-text-neutral-default, var(--mapa-text));
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.mapa-assist-restore:hover:not(:disabled) {
+  background: var(--dt-colors-background-container-neutral-emphasized, rgba(127, 127, 127, 0.12));
+}
+.mapa-assist-restore:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* Mensaje de error y nota informativa */
+.mapa-share-error {
+  font-size: 12.5px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  color: var(--dt-colors-text-critical-default, #c4314b);
+  background: var(--dt-colors-background-container-critical-default, rgba(196, 49, 75, 0.08));
+}
+.mapa-share-info {
+  font-size: 12.5px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  color: var(--dt-colors-text-primary-default, #464cce);
+  background: var(--dt-colors-background-container-primary-default, #f1f2f9);
+}
+.mapa-share-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 1.45;
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: var(--dt-colors-text-neutral-subdued, var(--mapa-muted));
+  background: var(--dt-colors-background-container-neutral-default, rgba(127, 127, 127, 0.06));
+}
+.mapa-share-note svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+/* Ayuda del contrato de estado (al fondo del editor de nodo): título, lista con
+   puntos verde/naranja/rojo y nota de "gris (Sin estado)". Texto sutil. */
+.mapa-dqlhelp {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 12px;
+  border-top: 1px solid var(--dt-colors-border-neutral-default, #c5c8d6);
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--dt-colors-text-neutral-subdued, var(--mapa-muted));
+}
+.mapa-dqlhelp-title {
+  font-weight: 600;
+  color: var(--dt-colors-text-neutral-default, var(--mapa-text));
+}
+.mapa-dqlhelp-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.mapa-dqlhelp-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.mapa-dqlhelp-dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.mapa-dqlhelp strong {
+  color: var(--dt-colors-text-neutral-default, var(--mapa-text));
+}
+/* Encabezado colapsable de la leyenda (flechita + título). */
+.mapa-dqlhelp-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  align-self: flex-start;
+}
+.mapa-dqlhelp-chev {
+  display: inline-flex;
+  color: var(--dt-colors-text-neutral-subdued, var(--mapa-muted));
+  transform: rotate(-90deg);
+  transition: transform 0.12s ease;
+}
+.mapa-dqlhelp-chev-open {
+  transform: rotate(0deg);
+}
+.mapa-dqlhelp-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Contenido de cada pestaña del editor de nodo: alto acotado con scroll propio
+   para que nada se recorte (ni la leyenda ni campos largos). El selector de
+   ícono abre en un portal, así que su popup NO queda dentro de este scroll. */
+.mapa-node-tab {
+  max-height: 72vh;
+  overflow-y: auto;
+  /* Aire para que el foco/borde de los inputs no quede pegado a la barra. */
+  padding: 2px 4px 2px 2px;
+}
+/* Notas: sin tope de alto para que el agarre del textarea lo agrande sin límite
+   (dentro del scroll de la pestaña); el alto inicial lo pone `rows` (noteRows). */
+.mapa-notes textarea {
+  resize: vertical;
+  max-height: none;
+  min-height: 0;
+}
+
+/* ── Nodo cuadrado (forma alternativa de SeverityNode) ── */
+/* El nodo cuadrado tiene aspect-ratio 1:1 y layout de ícono+texto en columna. */
+.sev-node.sev-square {
+  width: 130px;
+  aspect-ratio: 1 / 1;
+  border-radius: 17px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.sev-node.sev-square.sev-sm {
+  width: 104px;
+}
+.sev-node.sev-square.sev-lg {
+  width: 168px;
+}
+/* Layout interno en columna centrada para la forma cuadrada */
+.sev-square .sev-row {
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+}
+.sev-square .sev-name {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+}
+.sev-square .sev-kind {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+}
+
+/* ── Nodos atenuados en modo edición de imagen de fondo ── */
+.mapa-node-dim {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+/* ── Indicador de guardado: animación de giro para el ícono saving ── */
+@keyframes mapa-spin {
+  to { transform: rotate(360deg); }
+}
+.mapa-saving-spin svg {
+  animation: mapa-spin 0.9s linear infinite;
+}
+
+/* Indicador de guardado (sin borde ni fondo — no es un botón accionable) */
+.mapa-savebtn {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 30px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  box-shadow: none;
+  color: var(--mapa-text);
+  cursor: default;
+  flex: 0 0 auto;
+  outline: none;
+}
+
+/* ── Label de bloqueo de aspecto en modo edición de imagen: fuente más pequeña ── */
+.mapa-aspect-label {
+  font-size: 11px;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   HISTORIAL DE VERSIONES (VersionHistory)
+   Look limpio y nativo, coherente con Notebooks: fondo blanco, slate, redondeado.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* Contenedor raíz: posicionamiento relativo para anclar el dropdown */
+.ver-root {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Botón activo (dropdown abierto): fondo gris suave tipo "presionado" */
+.ver-btn-active {
+  background: var(--dt-colors-background-container-neutral-emphasized, rgba(127,127,127,0.12)) !important;
+}
+
+/* Dropdown flotante anclado bajo el botón */
+.ver-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 280px;
+  max-width: 340px;
+  background: var(--dt-colors-background-container-default, #fff);
+  border: 1px solid var(--dt-colors-border-container-default, #e0e3e8);
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.12), 0 1px 4px rgba(0,0,0,0.08);
+  z-index: 200;
+  overflow: hidden;
+  padding: 6px 0;
+}
+
+/* Encabezado de grupo de fecha */
+.ver-group {
+  padding: 0;
+}
+
+.ver-date {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--dt-colors-text-neutral-subdued, #6b7280);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 8px 14px 4px;
+}
+
+/* Fila de una versión */
+.ver-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px 6px 14px;
+  cursor: default;
+  transition: background 0.12s;
+  outline: none;
+}
+.ver-row:hover,
+.ver-row:focus-within {
+  background: var(--dt-colors-background-container-neutral-emphasized, rgba(127,127,127,0.08));
+}
+
+/* Área de texto (ocupa todo el espacio disponible) */
+.ver-row-info {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+/* Línea 1: hora – etiqueta */
+.ver-row-main {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+  font-size: 13px;
+  line-height: 1.3;
+}
+.ver-row-time {
+  font-weight: 600;
+  color: var(--dt-colors-text-neutral-default, #131d36);
+}
+.ver-row-dash {
+  color: var(--dt-colors-text-neutral-subdued, #6b7280);
+}
+.ver-row-label {
+  color: var(--dt-colors-text-neutral-subdued, #6b7280);
+  font-size: 12px;
+}
+
+/* Línea 2: avatar + nombre */
+.ver-row-user {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Avatar circular con iniciales */
+.ver-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #535172;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+/* Nombre del usuario */
+.ver-name {
+  font-size: 12px;
+  color: var(--dt-colors-text-neutral-subdued, #6b7280);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
+}
+
+/* Botón chevron → abre el menú de acciones */
+.ver-row-chevron-btn {
+  flex-shrink: 0;
+  opacity: 0.45;
+  transition: opacity 0.12s;
+}
+.ver-row:hover .ver-row-chevron-btn,
+.ver-row:focus-within .ver-row-chevron-btn {
+  opacity: 1;
+}
+
+/* Separador horizontal entre la lista y "Ver todas" */
+.ver-divider {
+  border: none;
+  border-top: 1px solid var(--dt-colors-border-container-default, #e0e3e8);
+  margin: 4px 0;
+}
+
+/* Botón "Ver todas" */
+.ver-showall {
+  display: block;
+  width: 100%;
+  padding: 8px 14px;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--dt-colors-text-primary-default, #1a6fd4);
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.ver-showall:hover {
+  background: var(--dt-colors-background-container-neutral-emphasized, rgba(127,127,127,0.08));
+}
+
+/* Estados: cargando / error / vacío */
+.ver-state {
+  padding: 14px 16px;
+  font-size: 13px;
+  color: var(--dt-colors-text-neutral-subdued, #6b7280);
+  text-align: center;
+}
+.ver-state-error {
+  color: var(--dt-colors-text-critical-default, #c0392b);
+}
+
+/* Cuerpo del modal "Ver todas" */
+.ver-all-body {
+  max-height: 60vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* Fila dentro del modal: misma estructura que .ver-row pero sin bordes redondeados propios */
+.ver-all-body .ver-group + .ver-group {
+  border-top: 1px solid var(--dt-colors-border-container-default, #e0e3e8);
+  margin-top: 4px;
+  padding-top: 4px;
+}
+
+/* Banner de VISTA PREVIA de una versión: barra flotante arriba del lienzo. Avisa
+   que es solo lectura y que los cambios no se guardan; un botón sale de la preview. */
+.mapa-preview-banner {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 8px 7px 16px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--sev-warn) 14%, white);
+  border: 1px solid color-mix(in srgb, var(--sev-warn) 45%, transparent);
+  box-shadow: 0 6px 20px rgba(19, 29, 54, 0.16);
+  font-size: 13px;
+  color: #131d36;
+  max-width: 90%;
+}
+.mapa-preview-text {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mapa-preview-exit {
+  flex: 0 0 auto;
+  border: none;
+  background: #131d36;
+  color: #fff;
+  padding: 5px 14px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.mapa-preview-exit:hover {
+  background: #2a3556;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Entidad / Davis / Topología (atadura a Smartscape)
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Aviso "entidad dada de baja" en el subtítulo del nodo. */
+.sev-retired {
+  color: var(--sev-err);
+  font-weight: 600;
+}
+
+/* Nodo con el popover "Relacionados" abierto: aro de foco (reusa el mismo tono
+   violeta primario que la selección). */
+.mapa-node-related-focus {
+  outline: 2px solid var(--dt-colors-border-primary-default, #464cce);
+  outline-offset: 3px;
+}
+
+/* ── Selector de entidad (EntityPicker) ─────────────────────────────────── */
+.mapa-entpicker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.mapa-entpicker-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.mapa-entpicker-controls > *:last-child {
+  flex: 1 1 auto;
+}
+/* Entidad atada (editor de nodo): chip con el nombre + botón "Abrir en
+   Dynatrace" al lado, en UNA fila. */
+.mapa-entchip-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.mapa-entchip {
+  display: inline-block;
+  max-width: 60%;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--mapa-delim);
+  background: var(--dt-colors-background-container-neutral-default, rgba(127, 127, 127, 0.06));
+  font-size: 12.5px;
+  color: var(--mapa-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Botón "de línea" (borde + hover): para acciones secundarias que antes se
+   veían como texto/link plano ("Abrir en Dynatrace"). */
+.mapa-linebtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--dt-colors-border-neutral-default, #c5c8d6);
+  background: transparent;
+  color: var(--dt-colors-text-neutral-default, var(--mapa-text));
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.mapa-linebtn:hover:not(:disabled) {
+  background: var(--dt-colors-background-container-neutral-emphasized, rgba(127, 127, 127, 0.12));
+}
+.mapa-linebtn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+/* Popup flotante de resultados (portal, estilo de los valores sugeridos de los
+   filtros de Dynatrace): superficie elevada, encabezado sutil y filas anchas.
+   OJO: vive en un portal en document.body, donde las variables --mapa-* de la
+   app NO existen → aquí solo tokens globales de Strato (--dt-colors-*), igual
+   que .iconpk-pop. */
+.mapa-entpicker-pop {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  container: mapa-entpop / inline-size;
+  border: 1px solid var(--dt-colors-border-neutral-default, #c5c8d6);
+  border-radius: 8px;
+  background: var(--dt-colors-background-container-neutral-default, #fff);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.3);
+}
+.mapa-entpicker-pophead {
+  padding: 10px 14px 4px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--dt-colors-text-neutral-default, #1a1f33);
+  opacity: 0.6;
+  flex: 0 0 auto;
+}
+.mapa-entpicker-pophead-warn {
+  color: var(--dt-colors-text-warning-default, #b8860b);
+  opacity: 1;
+}
+.mapa-entpicker-poplist {
+  overflow-y: auto;
+  min-height: 0;
+  padding-bottom: 4px;
+}
+.mapa-entpicker-msg {
+  padding: 10px 14px;
+  font-size: 12px;
+  color: var(--dt-colors-text-neutral-default, #1a1f33);
+  opacity: 0.65;
+}
+.mapa-entpicker-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 9px 14px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  color: var(--dt-colors-text-neutral-default, #1a1f33);
+}
+.mapa-entpicker-row:hover {
+  background: var(--dt-colors-background-container-neutral-emphasized, rgba(127, 127, 127, 0.12));
+}
+.mapa-entpicker-row-on {
+  background: color-mix(in srgb, var(--dt-colors-text-primary-default, #464cce) 12%, transparent);
+  color: var(--dt-colors-text-primary-default, #464cce);
+}
+.mapa-entpicker-name {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mapa-entpicker-ctx {
+  font-size: 11.5px;
+  opacity: 0.7;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mapa-entpicker-id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  opacity: 0.6;
+  white-space: nowrap;
+  letter-spacing: -0.01em;
+}
+/* Popup angosto: el contexto se va y quedan nombre | id. */
+@container mapa-entpop (max-width: 440px) {
+  .mapa-entpicker-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .mapa-entpicker-ctx { display: none; }
+}
+.mapa-entchip-id {
+  margin-left: 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  opacity: 0.6;
+}
+
+/* ── Modal de topología (TopologyModal) ─────────────────────────────────── */
+.mapa-topology-coverage {
+  font-size: 13px;
+  color: var(--mapa-muted);
+}
+.mapa-topology-empty {
+  padding: 12px;
+  font-size: 13px;
+  color: var(--mapa-muted);
+}
+.mapa-topology-list {
+  max-height: 280px;
+  overflow-y: auto;
+  border: 1px solid var(--mapa-delim);
+  border-radius: 6px;
+}
+.mapa-topology-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--mapa-delim);
+  font-size: 13px;
+}
+.mapa-topology-row:last-child {
+  border-bottom: none;
+}
+.mapa-topology-arrow {
+  color: var(--mapa-muted);
+  flex: 0 0 auto;
+}
+.mapa-topology-src,
+.mapa-topology-tgt {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Popover "Relacionados" (RelatedPopover) ────────────────────────────── */
+.mapa-related-pop {
+  width: 320px;
+  max-height: 340px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: var(--mapa-window-bg);
+  border: 1px solid var(--mapa-delim);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px var(--mapa-shadow);
+  color: var(--mapa-text);
+}
+.mapa-related-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--mapa-delim);
+}
+.mapa-related-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+.mapa-related-close {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--mapa-muted);
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 4px;
+}
+.mapa-related-close:hover {
+  background: var(--mapa-btn-hover);
+}
+.mapa-related-body {
+  overflow-y: auto;
+  padding: 4px 0;
+}
+.mapa-related-msg {
+  padding: 12px;
+  font-size: 12px;
+  color: var(--mapa-muted);
+}
+.mapa-related-section {
+  padding: 4px 0;
+}
+.mapa-related-shead {
+  padding: 6px 10px 2px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--mapa-muted);
+}
+.mapa-related-row {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  padding: 6px 10px;
+}
+.mapa-related-name {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  /* Fila completa para el nombre (antes competía por espacio con el botón al
+     lado y se cortaba muy rápido); el botón queda debajo, ver .mapa-related-actions. */
+  width: 100%;
+}
+/* Filas con acciones de solo ÍCONO (Conectar / Agregar y conectar / Abrir en
+   Dynatrace): al no llevar texto, caben en una sola línea junto al nombre — le
+   dejan mucho más ancho que cuando el botón tenía etiqueta ("+ Agregar y
+   conectar" se comía casi toda la fila). */
+.mapa-related-row-inline {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+.mapa-related-row-inline .mapa-related-name {
+  width: auto;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.mapa-related-icons {
+  display: flex;
+  gap: 2px;
+  flex: 0 0 auto;
+}
+.mapa-related-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--mapa-delim);
+  border-radius: 5px;
+  cursor: pointer;
+  color: var(--mapa-text);
+  flex: 0 0 auto;
+}
+.mapa-related-icon-btn:hover {
+  background: var(--mapa-btn-hover);
+}
+.mapa-related-actions {
+  display: flex;
+  gap: 4px;
+  flex: 0 0 auto;
+  align-self: flex-start;
+}
+.mapa-related-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+  background: transparent;
+  border: 1px solid var(--mapa-delim);
+  border-radius: 5px;
+  cursor: pointer;
+  color: var(--mapa-text);
+  flex: 0 0 auto;
+  /* Cuando no está envuelto en .mapa-related-actions (filas de un solo botón),
+     que no se estire a lo ancho de la fila (ahora en columna). */
+  align-self: flex-start;
+}
+.mapa-related-action:hover {
+  background: var(--mapa-btn-hover);
+}
+.mapa-related-action-danger:hover {
+  border-color: var(--sev-err);
+  color: var(--sev-err);
+}
+
+/* ── Mapa Padre ───────────────────────────────────────────────────────────── */
+
+/* Ícono de tipo en la lista de mapas (a la izquierda del nombre). */
+.mapa-maprow-type {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  margin-right: 6px;
+  color: var(--dt-colors-text-neutral-subdued, var(--mapa-muted));
+}
+.mapa-maprow-type-parent,
+.mapa-maprow-on .mapa-maprow-type-parent {
+  color: var(--mapa-parent-accent);
+}
+.mapa-maprow-on .mapa-maprow-type {
+  color: var(--mapa-sel-text);
+}
+
+/* "Actualizado hace X min" en la barra: es un dato, no un control. */
+.mapa-refreshinfo {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--dt-colors-text-neutral-subdued, var(--mapa-muted));
+  padding: 0 2px;
+}
+
+/* Tarjetas de tipo de mapa (modal de "nuevo mapa"). */
+.mapa-typecards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.mapa-typecard {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: transparent;
+  border: 1px solid var(--dt-colors-border-neutral-default, #c5c8d6);
+  color: var(--dt-colors-text-neutral-default, var(--mapa-text));
+}
+.mapa-typecard:hover {
+  background: var(--dt-colors-background-container-neutral-default, rgba(127, 127, 127, 0.08));
+}
+.mapa-typecard-on {
+  border-color: var(--dt-colors-text-primary-default, #464cce);
+  background: var(--mapa-sel-bg);
+}
+.mapa-typecard-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: var(--dt-colors-text-neutral-subdued, var(--mapa-muted));
+}
+.mapa-typecard-on .mapa-typecard-icon {
+  color: var(--dt-colors-text-primary-default, #464cce);
+}
+.mapa-typecard-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.mapa-typecard-title {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.mapa-typecard-desc {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--dt-colors-text-neutral-subdued, var(--mapa-muted));
+}
+
+/* ── Reglas de color de un nodo de mapa incrustado ────────────────────────── */
+/* Filas compactas al estilo del panel "Colors" de los tableros: muestra de
+   color + operador + valor, y a la derecha reordenar/quitar. */
+.mapa-crules {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.mapa-crule-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.mapa-crule-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+/* El desplegable de color lleva su muestra; el de operador es angosto porque
+   solo enseña el símbolo. */
+.mapa-crule-dd {
+  flex: 0 0 auto;
+  min-width: 132px;
+  border: 1px solid var(--dt-colors-border-neutral-default, #c5c8d6);
+}
+.mapa-crule-op {
+  flex: 0 0 auto;
+  min-width: 64px;
+  border: 1px solid var(--dt-colors-border-neutral-default, #c5c8d6);
+}
+.mapa-crule-swatch {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+.mapa-crule-value {
+  flex: 1 1 auto;
+  min-width: 72px;
+}
+.mapa-crule-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  flex: 0 0 auto;
+}
+
+/* ── Análisis de causa raíz ─────────────────────────────────────────────────
+   Rojo de causa raíz fijo (se lee en claro y oscuro con texto blanco). Número
+   rojo sólido = causa raíz; «Efecto de N» punteado = consecuencia (no se arregla
+   por separado). Leyenda arriba-derecha del lienzo; modal con la razón. */
+.mapa-rc-legend, .mapa-rc-modal, .sev-rc, .sev-rcfx { --rc-red: #d0293f; }
+.mapa-rc-spin {
+  width: 14px; height: 14px; border-radius: 50%;
+  border: 2px solid currentColor; border-right-color: transparent;
+  animation: mapa-rc-spin 0.8s linear infinite;
+}
+@keyframes mapa-rc-spin { to { transform: rotate(360deg); } }
+@keyframes mapa-rc-shimmer { to { background-position: -200% 0; } }
+
+.mapa-rc-legend {
+  position: absolute; top: 12px; right: 12px; z-index: 5;
+  width: 300px; max-width: calc(100% - 24px); max-height: calc(100% - 60px); overflow: auto;
+  background: var(--mapa-card, #fff); color: var(--mapa-text);
+  border: 1px solid var(--mapa-delim); border-radius: 12px; box-shadow: var(--mapa-shadow);
+  font-size: 12.5px;
+}
+.mapa-rc-head { display: flex; align-items: center; gap: 6px; padding: 9px 8px 8px 12px; border-bottom: 1px solid var(--mapa-delim); }
+.mapa-rc-title { font-weight: 700; font-size: 13px; }
+.mapa-rc-count {
+  min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; display: grid; place-items: center;
+  background: var(--rc-red); color: #fff; font-size: 11px; font-weight: 700;
+}
+.mapa-rc-spacer { flex: 1; }
+.mapa-rc-iconbtn {
+  width: 24px; height: 24px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 6px;
+  background: transparent; color: var(--mapa-muted); cursor: pointer;
+}
+.mapa-rc-iconbtn:hover { background: var(--mapa-btn-hover); color: var(--mapa-text); }
+.mapa-rc-info { margin: 0; padding: 9px 12px; color: var(--mapa-muted); border-bottom: 1px solid var(--mapa-delim); line-height: 1.45; }
+.mapa-rc-list { list-style: none; margin: 0; padding: 5px; display: grid; gap: 2px; }
+.mapa-rc-row {
+  width: 100%; display: grid; grid-template-columns: 26px 1fr; gap: 9px; align-items: start;
+  padding: 7px; border: 0; border-radius: 8px; background: transparent; color: inherit; text-align: left; cursor: pointer; font: inherit;
+}
+.mapa-rc-row:hover { background: color-mix(in srgb, var(--rc-red) 8%, transparent); }
+.mapa-rc-num {
+  width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; flex: none;
+  background: var(--rc-red); color: #fff; font-weight: 800; font-size: 13px;
+}
+.mapa-rc-num-lg { width: 38px; height: 38px; font-size: 18px; }
+.mapa-rc-rowtxt { display: grid; min-width: 0; }
+.mapa-rc-pid { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: var(--mapa-muted); }
+.mapa-rc-name { font-weight: 600; font-size: 13px; overflow-wrap: anywhere; }
+.mapa-rc-meta { color: var(--mapa-muted); font-size: 11.5px; overflow-wrap: anywhere; }
+.mapa-rc-foot {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 8px 12px; border-top: 1px solid var(--mapa-delim); color: var(--mapa-muted); font-size: 11.5px;
+}
+.mapa-rc-link { border: 0; background: transparent; padding: 2px 0; font: inherit; font-weight: 700; color: var(--dt-colors-text-primary-default, #464cce); cursor: pointer; white-space: nowrap; }
+.mapa-rc-busy { display: grid; gap: 8px; padding: 12px; color: var(--mapa-muted); }
+.mapa-rc-busy p { margin: 0; line-height: 1.45; white-space: pre-line; }
+.mapa-rc-skel {
+  height: 10px; border-radius: 5px;
+  background: linear-gradient(90deg, var(--mapa-delim), color-mix(in srgb, var(--mapa-delim) 35%, transparent), var(--mapa-delim));
+  background-size: 200% 100%; animation: mapa-rc-shimmer 1.4s ease infinite;
+}
+.mapa-rc-error { padding: 12px; color: var(--rc-red); line-height: 1.45; }
+.mapa-rc-empty { padding: 12px; color: var(--mapa-muted); line-height: 1.45; }
+
+/* Marcas en el nodo */
+.sev-rc {
+  position: absolute; left: -26px; top: -24px; z-index: 6;
+  min-width: 32px; height: 32px; padding: 0 7px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; white-space: nowrap;
+  background: var(--rc-red); color: #fff; font-weight: 800; font-size: 15px; cursor: pointer;
+  border: 3px solid var(--mapa-card, #fff); box-shadow: 0 4px 12px color-mix(in srgb, var(--rc-red) 45%, transparent);
+}
+.sev-rc:hover { transform: scale(1.06); }
+.sev-rcfx {
+  position: absolute; left: 18px; top: -14px; z-index: 6;
+  display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 7px 0 8px; border-radius: 999px;
+  border: 1.5px dashed color-mix(in srgb, var(--rc-red) 70%, transparent); background: var(--mapa-card, #fff);
+  color: var(--mapa-muted); font-size: 11px; font-weight: 600; white-space: nowrap; cursor: pointer;
+}
+.sev-rcfx:hover { color: var(--mapa-text); border-style: solid; }
+.sev-rcfx-n { width: 15px; height: 15px; border-radius: 50%; display: grid; place-items: center; background: var(--rc-red); color: #fff; font-size: 10px; font-weight: 700; }
+@media (prefers-reduced-motion: reduce) { .mapa-rc-spin, .mapa-rc-skel { animation: none; } }
+
+/* Modal */
+.mapa-rc-modal { display: grid; gap: 14px; }
+.mapa-rc-mhead { display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: center; }
+.mapa-rc-mname { font-size: 16px; font-weight: 700; }
+.mapa-rc-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.mapa-rc-chip { font-size: 12px; padding: 2px 9px; border-radius: 999px; background: color-mix(in srgb, var(--mapa-muted) 14%, transparent); }
+.mapa-rc-chip-crit { background: color-mix(in srgb, var(--rc-red) 14%, transparent); color: var(--rc-red); font-weight: 600; }
+.mapa-rc-sec { display: grid; gap: 6px; padding-top: 12px; border-top: 1px solid var(--mapa-delim); }
+.mapa-rc-reason { margin: 0; font-size: 14px; line-height: 1.55; }
+.mapa-rc-conf { font-size: 12.5px; color: var(--mapa-muted); }
+.mapa-rc-fx { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.mapa-rc-fxitem {
+  display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center;
+  padding: 7px 10px; border-radius: 8px; border: 1px dashed var(--mapa-delim);
+}
+.mapa-rc-fxitem-on { border-color: color-mix(in srgb, var(--rc-red) 60%, transparent); background: color-mix(in srgb, var(--rc-red) 6%, transparent); }
+.mapa-rc-fxbadge { font-size: 10px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--mapa-muted); border: 1px solid var(--mapa-delim); border-radius: 4px; padding: 1px 6px; }
+.mapa-rc-fxtxt { display: grid; min-width: 0; font-weight: 600; }
+.mapa-rc-time { font-size: 12px; color: var(--mapa-muted); font-variant-numeric: tabular-nums; }
+.mapa-rc-mutedline { font-size: 12px; font-weight: 400; color: var(--mapa-muted); }
+.mapa-rc-ev { margin: 0; padding-left: 18px; display: grid; gap: 4px; line-height: 1.45; }
+.mapa-rc-mfoot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding-top: 12px; border-top: 1px solid var(--mapa-delim); font-size: 12px; color: var(--mapa-muted); }
+.mapa-rc-openbtn, .mapa-rc-plink { display: inline-flex; align-items: center; gap: 6px; color: var(--dt-colors-text-primary-default, #464cce); text-decoration: none; font-weight: 600; }
+.mapa-rc-openbtn:hover, .mapa-rc-plink:hover { text-decoration: underline; }
+/* Modal de causa raíz v2: recorrible con clics */
+.mapa-rc-banner {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 9px 12px; border-radius: 8px; font-size: 13px;
+  background: color-mix(in srgb, var(--rc-red) 8%, transparent); border: 1px dashed color-mix(in srgb, var(--rc-red) 55%, transparent);
+}
+.mapa-rc-causecard { display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: start; }
+.mapa-rc-causebody { display: grid; gap: 7px; min-width: 0; }
+.mapa-rc-where { display: flex; flex-wrap: wrap; gap: 6px; }
+.mapa-rc-nodebtn {
+  display: inline-flex; align-items: center; gap: 5px; max-width: 100%;
+  padding: 3px 10px 3px 8px; border-radius: 999px; cursor: pointer; font: inherit; font-size: 12.5px; font-weight: 600;
+  color: var(--dt-colors-text-primary-default, #464cce); background: transparent;
+  border: 1px solid color-mix(in srgb, var(--dt-colors-text-primary-default, #464cce) 40%, transparent);
+}
+.mapa-rc-nodebtn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mapa-rc-nodebtn:hover { background: color-mix(in srgb, var(--dt-colors-text-primary-default, #464cce) 10%, transparent); }
+.mapa-rc-nodebtn-strong { background: var(--dt-colors-text-primary-default, #464cce); color: #fff; border-color: transparent; }
+.mapa-rc-nodebtn-strong:hover { background: color-mix(in srgb, var(--dt-colors-text-primary-default, #464cce) 85%, #000); }
+.mapa-rc-sechead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.mapa-rc-sechead .mapa-why-sectitle { margin-bottom: 0; }
+.mapa-rc-confpill { font-size: 11.5px; padding: 2px 9px; border-radius: 999px; background: color-mix(in srgb, var(--mapa-muted) 14%, transparent); }
+.mapa-rc-conf-alta { background: color-mix(in srgb, #24875a 16%, transparent); }
+.mapa-rc-conf-baja { background: color-mix(in srgb, #c86a00 16%, transparent); }
+.mapa-rc-fxitem { display: grid; gap: 6px; grid-template-columns: 1fr; }
+.mapa-rc-fxtop { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; }
+.mapa-rc-fxname { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.mapa-rc-fxactions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.mapa-rc-evtoggle {
+  display: inline-flex; align-items: center; gap: 6px; justify-self: start; padding: 2px 0; border: 0; background: transparent;
+  font: inherit; font-size: 12.5px; font-weight: 600; color: var(--mapa-muted); cursor: pointer;
+}
+.mapa-rc-evtoggle:hover { color: var(--mapa-text); }
+/* «Ir al nodo»: pulso sobre el nodo destino */
+.react-flow__node.mapa-rc-focus { z-index: 20 !important; }
+.react-flow__node.mapa-rc-focus > * { animation: mapa-rc-focus 0.9s ease-in-out 3; }
+@keyframes mapa-rc-focus {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, #464cce 0%, transparent); }
+  50% { box-shadow: 0 0 0 12px color-mix(in srgb, #464cce 38%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) { .react-flow__node.mapa-rc-focus > * { animation: none; outline: 3px solid #464cce; } }
+
+/* Veredicto (una frase) y «Qué hacer» del análisis de causa raíz */
+.mapa-rc-verdict {
+  margin: 0; padding: 10px 12px; border-radius: 8px; font-size: 14.5px; font-weight: 600; line-height: 1.45;
+  background: color-mix(in srgb, var(--rc-red) 7%, transparent); border-left: 3px solid var(--rc-red);
+}
+.mapa-rc-todo { margin: 0; padding-left: 20px; display: grid; gap: 4px; line-height: 1.45; }
+
+/* Evidencia verificable por relación causa → efecto */
+.mapa-rc-sigs { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; }
+.mapa-rc-sigscore { font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 999px; }
+.mapa-rc-sig { font-size: 11px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--mapa-delim); }
+.mapa-rc-sig-ok { color: #1f7a4f; border-color: color-mix(in srgb, #24875a 45%, transparent); }
+.mapa-rc-sig-no { color: var(--mapa-muted); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--mapa-muted) 60%, transparent); }
+
+/* Burbuja: papel del problema en el análisis de causa raíz */
+.mapa-why-rcchip {
+  flex: 0 0 auto; align-self: center; padding: 2px 9px; border-radius: 999px; cursor: pointer; font: inherit;
+  font-size: 11.5px; font-weight: 600; white-space: nowrap; color: var(--mapa-text); background: var(--mapa-card, #fff);
+  border: 1.5px dashed color-mix(in srgb, #d0293f 60%, transparent);
+}
+.mapa-why-rcchip-root { border-style: solid; background: color-mix(in srgb, #d0293f 10%, transparent); }
+.mapa-why-rcchip:hover { background: color-mix(in srgb, #d0293f 16%, transparent); }
+
+/* Estado vivo del análisis: causas/efectos ya resueltos */
+.sev-rc-ok { background: #24875a; box-shadow: 0 4px 12px color-mix(in srgb, #24875a 40%, transparent); font-size: 13px; }
+.mapa-rc-count-ok { background: #24875a; }
+.mapa-rc-num-ok { background: #24875a; }
+.mapa-rc-row-done { opacity: 0.6; }
+.mapa-rc-donepill {
+  display: inline-block; margin-left: 6px; padding: 0 7px; border-radius: 999px; font-size: 10.5px; font-weight: 700;
+  color: #1f7a4f; background: color-mix(in srgb, #24875a 14%, transparent); vertical-align: middle;
+}
+.mapa-rc-allok { padding: 9px 12px 0; font-size: 12.5px; color: #1f7a4f; font-weight: 600; }
+.mapa-rc-stale {
+  display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; margin: 8px 8px 0; padding: 7px 10px; border-radius: 8px;
+  font-size: 12px; background: color-mix(in srgb, #c86a00 10%, transparent); color: var(--mapa-text);
+}
+.mapa-rc-donebanner {
+  padding: 9px 12px; border-radius: 8px; font-size: 13px; font-weight: 600;
+  color: #1f7a4f; background: color-mix(in srgb, #24875a 10%, transparent);
+}
+
+/* Visita a un mapa hijo con el análisis de causa raíz del padre (arriba-centro). */
+.mapa-rc-visit {
+  position: absolute; top: 12px; left: 12px; z-index: 6;
+  display: flex; align-items: center; gap: 10px; max-width: calc(100% - 336px); /* 300 px de la leyenda + márgenes */
+  padding: 6px 6px 6px 12px; border-radius: 999px;
+  background: var(--mapa-card, #fff); color: var(--mapa-text);
+  border: 1px solid var(--rc-red); box-shadow: var(--mapa-shadow); font-size: 12.5px;
+}
+.mapa-rc-visit > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.mapa-rc-visit > button { flex-shrink: 0; }
+@media (max-width: 760px) { .mapa-rc-visit { max-width: calc(100% - 24px); top: auto; bottom: 44px; } }
+
+/* «+N» de las marcas de causa raíz compactas (máx. 3 números a la vista). */
+.sev-rc .sev-rc-more { margin-left: 3px; font-size: 0.85em; opacity: 0.9; }
+.sev-rcfx-n.sev-rc-more { width: auto; min-width: 15px; padding: 0 4px; border-radius: 999px; margin-left: 0; opacity: 1; font-size: 10px; }
+
+/* Efecto ya resuelto: la relación con su causa se sigue viendo, atenuada y en verde. */
+.sev-rcfx.sev-rcfx-ok { border-color: color-mix(in srgb, #24875a 70%, transparent); opacity: 0.85; }
+.sev-rcfx.sev-rcfx-ok .sev-rcfx-n { background: #24875a; }
+
+/* Leyenda: «Limpiar» junto a «Volver a analizar», y aviso de mapa sin marcas. */
+.mapa-rc-footbtns { display: inline-flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.mapa-rc-link.mapa-rc-link-muted { color: var(--mapa-muted); font-weight: 600; }
+.mapa-rc-link.mapa-rc-link-muted:hover { color: var(--mapa-text); }
+.mapa-rc-cleared { padding: 4px 12px 0; font-size: 11.5px; color: var(--mapa-muted); }
+
+/* Aviso «contenido del mapa no es válido» (mismo marco que el estado vacío). */
+.mapa-empty-icon.mapa-invalid-icon { color: #c4231c; background: color-mix(in srgb, #c4231c 12%, transparent); }

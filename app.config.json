@@ -1,0 +1,121 @@
+{
+  "$schema": "./.dt-app/app.config.schema.json",
+  "environmentUrl": "https://lqy04258.apps.dynatrace.com/",
+  "app": {
+    "name": "Mapas de Servicios V2",
+    "version": "0.8.6",
+    "description": "Nodos conectados con estado por Davis o DQL; topologia real de Smartscape.",
+    "id": "my.mapaservicios.v2",
+    "icon": "icon.svg",
+    "scopes": [
+      {
+        "name": "storage:logs:read",
+        "comment": "default template"
+      },
+      {
+        "name": "storage:buckets:read",
+        "comment": "default template"
+      },
+      {
+        "name": "storage:metrics:read",
+        "comment": "mapa: DQL de nodos (metricas)"
+      },
+      {
+        "name": "storage:spans:read",
+        "comment": "mapa: DQL de nodos (spans/traces)"
+      },
+      {
+        "name": "storage:events:read",
+        "comment": "mapa: DQL de nodos (eventos)"
+      },
+      {
+        "name": "storage:bizevents:read",
+        "comment": "mapa: DQL de nodos (business events)"
+      },
+      {
+        "name": "storage:entities:read",
+        "comment": "mapa: DQL de nodos (entidades/Smartscape)"
+      },
+      {
+        "name": "storage:smartscape:read",
+        "comment": "mapa: DQL de nodos (smartscapeNodes / tabla smartscape.nodes)"
+      },
+      {
+        "name": "storage:files:read",
+        "comment": "mapa: DQL de nodos (load de lookup tables / archivos tabulares en /lookups/)"
+      },
+      {
+        "name": "storage:system:read",
+        "comment": "mapa: DQL de nodos (datos de sistema dt.system.*)"
+      },
+      {
+        "name": "storage:security.events:read",
+        "comment": "mapa: DQL de nodos (security events)"
+      },
+      {
+        "name": "storage:user.sessions:read",
+        "comment": "mapa: DQL de nodos (RUM: sesiones de usuario)"
+      },
+      {
+        "name": "storage:user.events:read",
+        "comment": "mapa: DQL de nodos (RUM: eventos de usuario)"
+      },
+      {
+        "name": "davis-copilot:conversations:execute",
+        "comment": "mapa: analisis de la causa del estado con la IA de Davis CoPilot (burbuja '¿Por que?')"
+      },
+      {
+        "name": "davis-copilot:nl2dql:execute",
+        "comment": "mapa: 'Investigar a fondo' genera una consulta de investigacion (nl2dql)"
+      },
+      {
+        "name": "document:documents:read",
+        "comment": "mapa: persistencia (cargar)"
+      },
+      {
+        "name": "document:documents:write",
+        "comment": "mapa: persistencia (guardar)"
+      },
+      {
+        "name": "document:documents:delete",
+        "comment": "mapa: enviar mapa a la papelera"
+      },
+      {
+        "name": "document:trash.documents:read",
+        "comment": "mapa: listar la papelera (restaurar)"
+      },
+      {
+        "name": "document:trash.documents:restore",
+        "comment": "mapa: restaurar un mapa borrado"
+      },
+      {
+        "name": "document:direct-shares:read",
+        "comment": "mapa: compartir (ver quien tiene acceso)"
+      },
+      {
+        "name": "document:direct-shares:write",
+        "comment": "mapa: compartir (dar/quitar acceso lectura o edicion)"
+      },
+      {
+        "name": "document:direct-shares:delete",
+        "comment": "mapa: compartir (revocar todo el acceso)"
+      },
+      {
+        "name": "iam:users:read",
+        "comment": "mapa: compartir (buscar a la persona por su correo)"
+      },
+      {
+        "name": "iam:groups:read",
+        "comment": "mapa: compartir (mostrar el nombre de los grupos con acceso)"
+      },
+      {
+        "name": "automation:workflows:run",
+        "comment": "mapa: ejecutar el workflow de análisis de causa raíz (botón «Causa raíz»)"
+      },
+      {
+        "name": "automation:workflows:read",
+        "comment": "mapa: leer el estado y el resultado del workflow de causa raíz"
+      }
+    ]
+  }
+}

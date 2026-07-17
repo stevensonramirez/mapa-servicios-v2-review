@@ -1,0 +1,76 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "causasRaiz": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "problemId": {
+            "type": "string",
+            "description": "event.id del problema causa raíz (de la lista problemas)"
+          },
+          "veredicto": {
+            "type": "string",
+            "description": "UNA frase accionable: qué pasa, en qué nodo y desde cuándo"
+          },
+          "razon": {
+            "type": "string"
+          },
+          "confianza": {
+            "type": "string",
+            "enum": [
+              "alta",
+              "media",
+              "baja"
+            ]
+          },
+          "recomendaciones": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "2 a 4 acciones concretas para resolver la causa"
+          },
+          "efectos": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "event.id de los problemas que son efecto de esta causa"
+          },
+          "evidencia": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "problemId",
+          "veredicto",
+          "razon",
+          "confianza",
+          "recomendaciones",
+          "efectos",
+          "evidencia"
+        ]
+      }
+    },
+    "sinClasificar": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "resumen": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "causasRaiz",
+    "sinClasificar",
+    "resumen"
+  ]
+}

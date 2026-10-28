@@ -1,9 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { directSharesClient } from "@dynatrace-sdk/client-document";
+import { directSharesClient, documentsClient } from "@dynatrace-sdk/client-document";
 import { usersAndGroupsClient } from "@dynatrace-sdk/client-iam";
 import type { SsoEntity } from "@dynatrace-sdk/client-document";
 import { getCurrentUserDetails, getEnvironmentId } from "@dynatrace-sdk/app-environment";
 import { useT } from "../i18n";
+import {
+  AnalystLabelError,
+  MAX_ANALYSTS,
+  httpStatus,
+  planRoleChange,
+  readAnalysts,
+  resolveRole,
+  runRoleChange,
+  sameLabels,
+  shareStartState,
+  withAnalyst,
+} from "./analystRole";
+import type { ShareLevel } from "./analystRole";
 
 // Compartir un mapa (un documento del Document service) con otras personas, al
 // estilo del menú "Share" de Notebooks pero acotado a nuestro caso (Forma A):
@@ -13,14 +26,19 @@ import { useT } from "../i18n";
 //    y `document:direct-shares:*`. Quien RECIBE no necesita nada de esto.
 //  • Se comparte escribiendo el CORREO de la persona; la app lo traduce al
 //    sso-id interno por detrás (la API de shares trabaja con sso-id, no correo).
-//  • Dos roles: "Solo lectura" (access "read") o "Edición" (access "read-write").
+//  • Tres roles: "Solo lectura" (access "read"), "Analista" (access "read-write"
+//    + label de analista, ver analystRole.ts) o "Edición" (access "read-write").
 //
 // Modelo del Document service (límite clave): un documento admite COMO MÁXIMO un
 // share por tipo de acceso. Así que manejamos 2 "cubos" por mapa —uno de lectura
 // y otro de edición— y movemos a la persona entre ellos. Una persona queda en un
 // solo rol (el más alto): al darle "Edición" se la quita de "Solo lectura".
+// El orden de los pasos de cada cambio de rol lo decide planRoleChange: ningún
+// fallo a mitad de camino deja a alguien con más permisos de los debidos.
 
-export type ShareRole = "read" | "read-write";
+export type ShareRole = "read" | "analyst" | "read-write";
+
+const LEVEL_OF: Record<ShareRole, ShareLevel> = { read: "viewer", analyst: "analyst", "read-write": "editor" };
 
 export type ShareRecipient = {
   uid: string;
@@ -78,6 +96,10 @@ export const useMapShare = (documentId: string | null) => {
   // Ids de los shares (cubos) read / read-write del documento, una vez creados.
   const readShareRef = useRef<string | null>(null);
   const writeShareRef = useRef<string | null>(null);
+  // Analistas según las labels del documento (al cargar) y si QUIEN COMPARTE es
+  // analista de este mapa (entonces no puede cambiar accesos).
+  const analystsRef = useRef<Set<string>>(new Set());
+  const [locked, setLocked] = useState(false);
   // Token de carga: una carga vieja (documentId anterior / modal cerrado) no debe
   // pisar el estado de una nueva. Cada load() toma un token y solo escribe si
   // sigue siendo el vigente al terminar.
@@ -152,6 +174,8 @@ export const useMapShare = (documentId: string | null) => {
       loadTokenRef.current++;
       readShareRef.current = null;
       writeShareRef.current = null;
+      analystsRef.current = new Set();
+      setLocked(false);
       setRecipients([]);
       setError(null);
       setInfo(null);
@@ -165,6 +189,10 @@ export const useMapShare = (documentId: string | null) => {
     readShareRef.current = null;
     writeShareRef.current = null;
     try {
+      // Labels del documento → quién es analista; y el rol de quien comparte.
+      const meta = await documentsClient.getDocumentMetadata({ id: documentId });
+      const analysts = new Set(readAnalysts(meta.labels));
+      const meLocked = resolveRole(meta, getCurrentUserDetails().id) === "analyst";
       const list = await directSharesClient.listDirectShares({ filter: `documentId='${documentId}'` });
       const byRole = new Map<string, ShareRecipient>(); // uid → recipient (gana read-write)
 
@@ -200,9 +228,14 @@ export const useMapShare = (documentId: string | null) => {
       if (!current()) return; // documentId cambió o el modal se cerró: no pisar
       const merged = recsList.map((rec) => {
         const u = rec.type === "group" ? resolvedGroups.get(rec.uid) : resolvedUsers.get(rec.uid);
-        return u ? { ...rec, name: u.name, email: u.email } : rec;
+        // Edición + label de analista = Analista (solo personas).
+        const role: ShareRole =
+          rec.role === "read-write" && rec.type !== "group" && analysts.has(rec.uid) ? "analyst" : rec.role;
+        return u ? { ...rec, role, name: u.name, email: u.email } : { ...rec, role };
       });
       merged.sort((a, b) => a.name.localeCompare(b.name));
+      analystsRef.current = analysts;
+      setLocked(meLocked);
       setRecipients(merged);
     } catch {
       if (current()) setError(t("share.loadError"));
@@ -275,7 +308,7 @@ export const useMapShare = (documentId: string | null) => {
 
   // Localiza en el backend el cubo (share) del rol pedido, si ya existe.
   const findShare = useCallback(
-    async (role: ShareRole): Promise<string | null> => {
+    async (role: "read" | "read-write"): Promise<string | null> => {
       if (!documentId) return null;
       const list = await directSharesClient.listDirectShares({ filter: `documentId='${documentId}'` });
       const wantWrite = role === "read-write";
@@ -295,7 +328,7 @@ export const useMapShare = (documentId: string | null) => {
   // Si el create falla porque el cubo ya existía (ShareAlreadyExists), lo busca y
   // añade ahí. `notify` controla el aviso por correo de esta operación.
   const grant = useCallback(
-    async (role: ShareRole, entity: SsoEntity, notify: boolean) => {
+    async (role: "read" | "read-write", entity: SsoEntity, notify: boolean) => {
       const ref = role === "read-write" ? writeShareRef : readShareRef;
       if (ref.current) {
         await directSharesClient.addDirectShareRecipients({
@@ -325,6 +358,75 @@ export const useMapShare = (documentId: string | null) => {
     [documentId, findShare],
   );
 
+  // Pone o quita a una persona en las labels de analista del documento. Lee la
+  // metadata fresca y escribe con bloqueo optimista; si otro escribió en el medio
+  // (409), relee y reintenta. No toca ninguna otra label.
+  const setAnalystLabel = useCallback(
+    async (uid: string, on: boolean) => {
+      if (!documentId) return;
+      for (let i = 0; i < 3; i++) {
+        const meta = await documentsClient.getDocumentMetadata({ id: documentId });
+        const next = withAnalyst(meta.labels, uid, on); // tooMany / badId: lanza
+        if (sameLabels(meta.labels, next)) return; // ya estaba como se pide
+        try {
+          await documentsClient.updateDocument({
+            id: documentId,
+            optimisticLockingVersion: meta.version,
+            body: { labels: next },
+          });
+          return;
+        } catch (e) {
+          if (httpStatus(e) !== 409) throw e;
+        }
+      }
+      throw new Error("conflict");
+    },
+    [documentId],
+  );
+
+  // Mensaje del error de un cambio de rol (el tope de analistas tiene el suyo).
+  const roleErrMsg = useCallback(
+    (e: unknown, fallback: string, withDetail: string): string => {
+      if (e instanceof AnalystLabelError && e.code === "tooMany") return t("share.analystLimit", { n: MAX_ANALYSTS });
+      const d = detailMsg(e);
+      return d ? t(withDetail, { detail: d }) : t(fallback);
+    },
+    [t],
+  );
+
+  // Ejecuta un cambio de rol con los pasos que decide planRoleChange.
+  const changeRole = useCallback(
+    async (entity: SsoEntity, to: ShareLevel, notify: boolean): Promise<void> => {
+      const steps = planRoleChange(shareStartState(to, analystsRef.current.has(entity.id)), to);
+      let notifyFailed = false;
+      // El acceso puede fallar por el AVISO por correo (algunos correos lo
+      // rechazan). Lo importante es DAR EL ACCESO: reintentamos sin aviso.
+      const grantNotify = async (role: "read" | "read-write") => {
+        try {
+          await grant(role, entity, notify);
+        } catch (e) {
+          if (!notify) throw e;
+          await grant(role, entity, false);
+          notifyFailed = true;
+        }
+      };
+      // Al bajar de Edición a Solo lectura, sacar del cubo de edición es
+      // OBLIGATORIO (si no, conservaría edición sin aviso); al subir, sacar del de
+      // lectura es limpieza (el rol más alto ya manda). planRoleChange lo marca así.
+      const res = await runRoleChange(steps, {
+        grantRead: () => grantNotify("read"),
+        grantWrite: () => grantNotify("read-write"),
+        removeRead: () => removeFrom(readShareRef.current, entity.id),
+        removeWrite: () => removeFrom(writeShareRef.current, entity.id),
+        addLabel: () => setAnalystLabel(entity.id, true),
+        removeLabel: () => setAnalystLabel(entity.id, false),
+      });
+      if (notifyFailed) setInfo(t("share.notifyWarn"));
+      if (!res.ok) throw res.error;
+    },
+    [grant, removeFrom, setAnalystLabel, t],
+  );
+
   // Da (o cambia) el acceso de una persona. La deja en un solo rol.
   const assignAccess = useCallback(
     async (user: FoundUser, role: ShareRole, notify: boolean) => {
@@ -336,63 +438,45 @@ export const useMapShare = (documentId: string | null) => {
       // defecto "user": el buscador por correo siempre crea usuarios.
       const entity: SsoEntity = { id: user.uid, type: user.type === "group" ? "group" : "user" };
       try {
-        try {
-          await grant(role, entity, notify);
-        } catch (e) {
-          // El acceso puede fallar por el AVISO por correo (algunos correos lo
-          // rechazan). Lo importante es DAR EL ACCESO: reintentamos sin aviso.
-          if (notify) {
-            await grant(role, entity, false);
-            setInfo(t("share.notifyWarn"));
-          } else {
-            throw e;
-          }
+        // Analista es solo para personas: la app no puede saber quién es de un grupo.
+        if (role === "analyst" && entity.type === "group") {
+          setError(t("share.analystGroupOff"));
+          return;
         }
-        // Mantener un solo rol: quitarlo del otro cubo. El acceso del rol pedido ya
-        // se concedió. UPGRADE (read→read-write): "other" es el cubo de MENOR
-        // privilegio; si la limpieza falla, el dedup ya muestra el rol más alto
-        // pedido → inocuo (best-effort). DOWNGRADE (read-write→read): "other" es el
-        // cubo de MAYOR privilegio; si NO se quita, la persona conserva edición y el
-        // dedup lo oculta mostrando "Edición" → NO podemos tragarnos ese fallo: sería
-        // un downgrade de privilegio perdido sin aviso. En ese caso lo relanzamos.
-        const other = role === "read-write" ? readShareRef.current : writeShareRef.current;
-        const isDowngrade = role === "read";
-        try {
-          await removeFrom(other, user.uid);
-        } catch (e) {
-          if (isDowngrade) throw e; // que lo reporte el catch externo (setError con detalle)
-          /* upgrade: best-effort; el grant ya quedó y el dedup muestra el rol correcto */
-        }
+        await changeRole(entity, LEVEL_OF[role], notify);
         await load();
       } catch (e) {
-        const d = detailMsg(e);
-        setError(d ? t("share.shareErrMsg", { detail: d }) : t("share.shareError"));
+        // Se recarga ANTES de mostrar el error (load lo limpia al empezar): así la
+        // lista refleja lo que sí alcanzó a cambiar y el aviso no se pierde.
+        const msg = roleErrMsg(e, "share.shareError", "share.shareErrMsg");
+        await load();
+        setError(msg);
       } finally {
         setBusy(false);
       }
     },
-    [documentId, grant, removeFrom, load, t],
+    [documentId, changeRole, load, roleErrMsg, t],
   );
 
-  // Revoca por completo el acceso de una persona (de ambos cubos).
+  // Revoca por completo el acceso de una persona (ambos cubos y su label).
   const revoke = useCallback(
     async (uid: string) => {
       setBusy(true);
       setError(null);
       setInfo(null);
       try {
-        await removeFrom(readShareRef.current, uid);
-        await removeFrom(writeShareRef.current, uid);
+        await changeRole({ id: uid, type: "user" }, "none", false); // quitar no depende del tipo
         await load();
       } catch (e) {
-        const d = detailMsg(e);
-        setError(d ? t("share.revokeErrMsg", { detail: d }) : t("share.revokeError"));
+        const msg = roleErrMsg(e, "share.revokeError", "share.revokeErrMsg");
+        await load();
+        setError(msg);
       } finally {
         setBusy(false);
       }
     },
-    [removeFrom, load, t],
+    [changeRole, load, roleErrMsg],
   );
 
-  return { owner, recipients, loading, busy, error, info, searchUsers, assignAccess, revoke, reload: load };
+  return { owner, recipients, loading, busy, error, info, locked, searchUsers, assignAccess, revoke, reload: load };
 };

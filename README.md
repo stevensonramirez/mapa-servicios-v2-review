@@ -1,6 +1,6 @@
 # Mapas de Servicios V2 — Documentación técnica
 
-App de Dynatrace AppEngine (`my.mapaservicios.v2`, v0.8.6) para mapas curados de servicios con estado
+App de Dynatrace AppEngine (`my.mapaservicios.v2`, v0.9.1) para mapas curados de servicios con estado
 en vivo. Este documento es para el equipo que va a **mantener y evolucionar** la app: cómo está hecha,
 dónde está cada cosa y qué consideraciones no son obvias. La guía funcional está en
 [GUIA-USUARIO.md](GUIA-USUARIO.md).
@@ -119,9 +119,12 @@ Todo el código de UI está en `ui/app/` (entrada `App.tsx`, páginas en `pages/
 | `workflow/` | Fuente del workflow de Dynatrace del análisis (`contexto.js`, `prompt.md`, `output-schema.json`, `resultado.js`, `progreso.js`, `comentar.js`, `build-workflow.py`). Ver `workflow/README.md`. |
 | `assistIntent.ts` | Puente a **Dynatrace Assist** (`dynatrace.davis.copilot`): `openAssistWithPrompt` copia la pregunta al portapapeles y abre la app en ventana nueva (el App Shell levanta el panel con Agentic activable). Lee el comentario del archivo antes de tocarlo: los intentos por Intent están documentados ahí. |
 | `nodeStatus.tsx` | Contrato de severidad DQL (0/1/2) y conversión filas→severidad (`NodeStatusProbe`); contrato de **valor** (`recordsToValue`: campo `value` o primer numérico, arreglo → último punto; `formatValue` compacto; `DqlValueProbe`, mismo dedupe/escalonado/pausa). |
-| `useMapPersistence.ts` | Persistencia completa: Document service, autosave debounced, multi-mapa, papelera, import/export, validación ESTRICTA al cargar (`mapValidation.ts`, sin rescates) y normalización. Read-only real por mapa: sale del campo `access` del documento (listado y metadata), no de un 403 al guardar; `MapMeta.readOnly` lo lleva a la lista. |
+| `useMapPersistence.ts` | Persistencia completa: Document service, autosave debounced, multi-mapa, papelera, import/export, validación ESTRICTA al cargar (`mapValidation.ts`, sin rescates) y normalización. Read-only real por mapa: sale del rol (`resolveRole` de `analystRole.ts` con `access`, `owner` y `labels` del documento; el listado pide `addFields: "labels"`), no de un 403 al guardar; `MapMeta.readOnly`/`MapMeta.analyst` lo llevan a la lista. El analista es `readOnly` y solo escribe por `saveAnalysis` (únicamente `settings.rootCause`). |
+| `analystRole.ts` | **Rol Analista**, núcleo puro sin SDK (se prueba con `node --test`): labels `an:<sso>;<sso>` (`readAnalysts`/`writeAnalysts`/`withAnalyst`, tope 50), `resolveRole`, plan de cambios de rol en orden seguro (`planRoleChange`/`runRoleChange`/`shareStartState`), guardado del análisis con bloqueo optimista (`patchRootCause`/`saveAnalysisWith`) e interruptor `ANALYST_ROLE_ENABLED` (solo la opción en Compartir). |
 | `useMapVersions.ts` + `VersionHistory.tsx` | Historial: snapshots nativos (cadencia ~3 min de inactividad + manual), listar/preview/restaurar. |
-| `useMapShare.ts` + `ShareModal.tsx` | Compartir con personas (IAM users, por nombre/correo) y con grupos (IAM groups, por nombre; etiqueta «Grupo») con lectura/edición (direct-shares). `searchUsers` consulta usuarios y grupos en paralelo con try/catch independientes; los destinatarios viajan como `SsoEntity {id, type: "user" \| "group"}`. |
+| `useMapShare.ts` + `ShareModal.tsx` | Compartir con personas (IAM users, por nombre/correo) y con grupos (IAM groups, por nombre; etiqueta «Grupo») con 3 roles: Solo lectura (share `read`), Analista (share `read-write` + label, solo personas) y Edición (share `read-write`). Cada cambio de rol corre los pasos de `planRoleChange` (ver §5). `searchUsers` consulta usuarios y grupos en paralelo con try/catch independientes; los destinatarios viajan como `SsoEntity {id, type: "user" \| "group"}`. Si quien abre el modal es analista del mapa, no puede cambiar nada. |
+| `tests/` | Pruebas del núcleo del rol Analista con el runner de Node (`node --no-warnings --test tests/`, Node ≥ 23, sin dependencias): transiciones de rol con fallos simulados en cada paso, guardado contra un Document service simulado con bloqueo optimista, labels y paridad de Compartir. |
+| `rollback/` | Kit de rollback del rol Analista: `apagar-analista.sh` (nivel 1), `volver-v087.sh` (nivel 2), `listar-analistas.js` (consola del navegador, solo lectura) y su `README.md`. |
 | `mapLibraryContext.tsx` / `MapSidebar.tsx` / `TrashModal.tsx` | Biblioteca de mapas, sidebar (ícono por tipo de mapa, acento en el Mapa Padre, arrastre de un mapa al lienzo), papelera (30 días). |
 | `NewMapModal.tsx` | Modal de creación: elige el tipo del mapa (Mapa de Servicio o Mapa Padre). Un Mapa de Servicio puede convertirse en Mapa Padre después (menú ⋮, un solo sentido). |
 | `useSubmapStatus.ts` | Estado de los nodos sub-mapa: evalúa la salud del mapa incrustado (ejecuta sus DQL con la cadencia del Mapa Padre) y produce la métrica de la pastilla. |
@@ -167,6 +170,19 @@ Todo el código de UI está en `ui/app/` (entrada `App.tsx`, páginas en `pages/
   true`; el viejo `aiInsights` ya no se lee, ver gotcha 15) y `assistPrompt?: string` (plantilla personalizada del prompt de Assist;
   sin valor o en blanco se usa el default del idioma activo, y el valor personalizado **manda sobre el
   idioma** de la interfaz).
+- **Rol Analista (labels del documento)**: quién es analista vive en las **labels** del documento, no en el
+  contenido: `an:<sso-id>;<sso-id>`, dos ids por label (76 de los 80 caracteres permitidos; la plataforma
+  admite 25 labels, así que el tope es 50 analistas). Al estar en la metadata, ni el autosave de un editor
+  (último que escribe gana sobre el contenido), ni deshacer, duplicar, descargar o restaurar una versión las
+  tocan. Rol efectivo (`resolveRole`): sin `write` → lector; dueño → dueño (nunca analista); id en una label
+  `an:` → analista; si no → editor. El analista tiene share `read-write` por debajo; la app lo trata como
+  `readOnly` y solo escribe `settings.rootCause` con `saveAnalysis`: relee el documento, confirma que sigue
+  siendo analista, parcha el JSON crudo, valida con `validateMapContent` y escribe con
+  `optimisticLockingVersion`; ante un 409 relee y reintenta (hasta 3 veces), así nunca pisa a un editor.
+- **Cambios de rol al compartir** (`planRoleChange`): al subir a Analista, primero la label y luego el permiso;
+  al bajar o quitar, primero el permiso y luego la label. Ningún fallo a mitad de camino deja a la persona con
+  más permisos que el origen o el destino. Solo lectura, Edición y Quitar hacen las mismas llamadas de
+  siempre (conceder el cubo pedido e intentar sacar del otro), más quitar la label si la persona la tiene.
 - **Viewport por mapa**: el paneo/zoom NO va en el documento; se guarda en `localStorage` con clave
   `…:viewport:<mapId>` (debounce 300 ms). El id del mapa se captura **en el evento**, no al escribir,
   para que un paneo pendiente no se atribuya al mapa al que acabas de cambiar. Sin viewport recordado
@@ -358,7 +374,8 @@ ids con `ENTITY_EXACT`.
 La app **no** llama a la IA directo: ejecuta un **workflow** del tenant y lee su resultado.
 
 ```
-Botón «Causa raíz» (solo editores, Mapas de Servicio y Mapas Padre, nodos en amarillo/rojo)
+Botón «Causa raíz» (editores y analistas, Mapas de Servicio y Mapas Padre, nodos en amarillo/rojo;
+                   el analista guarda el resultado con saveAnalysis, ver §5)
   → rootCause.collectMapProblems: event.id por nodo, activos o cerrados hace ≤ RC_CLOSED_WINDOW_MIN (15)
        (permisos del usuario; el filtro ACTIVE del DQL del nodo se amplía solo aquí)
   → workflowsClient.runWorkflow({ id: RC_WORKFLOW_ID, body: { input } })
@@ -405,7 +422,8 @@ Botón «Causa raíz» (solo editores, Mapas de Servicio y Mapas Padre, nodos en
 
 ## 10. Workflow de cambios y deploy
 
-1. Editar → `npm run lint && npm run build` (ambos verdes antes de cualquier deploy).
+1. Editar → `npm run lint && npm run build` y `node --no-warnings --test tests/` (todo verde antes de
+   cualquier deploy).
 2. Probar contra el tenant real con `npm start` (no hay mocks, la app siempre habla con Dynatrace).
 3. **Bump de versión** en `app.config.json` (semver; la versión se muestra en «Acerca de»).
 4. `npm run deploy` → abre SSO en el navegador si la sesión OAuth expiró (los tokens del CLI caducan
@@ -432,6 +450,15 @@ viajan con la app (son documentos por tenant), usar Exportar/Importar JSON para 
   Dynatrace Intelligence, lectura de Grail/Smartscape y escritura de eventos (comentarios).
 - La burbuja conserva el análisis con **Davis CoPilot** (ajuste «Análisis con IA en la burbuja»): convive
   con el análisis de causa raíz, igual que los botones de Dynatrace Assist (restaurados en 0.7.1).
+
+### Rol Analista: despliegue y rollback (28-oct-2026, v0.9.0 → v0.9.1)
+- Se publicó en dos pasos: v0.9.0 con `ANALYST_ROLE_ENABLED = false` (código nuevo, opción oculta) y v0.9.1
+  con la opción encendida. La protección del analista no depende del interruptor.
+- Rollback en `rollback/` (procedimiento en `rollback/README.md`): **nivel 1** `apagar-analista.sh <versión>`
+  (vuelve a ocultar la opción) y **nivel 2** `volver-v087.sh <versión>` (código de la v0.8.7 con una versión
+  mayor que la instalada). Antes del nivel 2 hay que pasar a Solo lectura a los analistas: la v0.8.7 no lee
+  las labels y los vería como editores (`listar-analistas.js` los encuentra). Los dos scripts se ensayan con
+  `--probar` sin publicar.
 
 ## 11. Gotchas, léelos antes de tocar código
 
@@ -579,6 +606,25 @@ viajan con la app (son documentos por tenant), usar Exportar/Importar JSON para 
     `type: "text"` → `WhyModal` (`rootCause?.causes.length`) tumbaba la app entera. Antes de desplegar se
     validaron los 80 mapas de prod: solo falló ese. Si se agrega un campo/tipo nuevo a la app, agregarlo
     también al validador o los mapas nuevos se verán como inválidos.
+31. **Barra superior en pantallas angostas (v0.8.7, `MapCanvas.tsx` + `map.css`).** Los botones no se encogen
+    (`flex-shrink: 0`); ceden primero `.mapa-refreshinfo` («Actualizado hace…», con «…») y el nombre del mapa.
+    El modo solo-íconos (`compact`) se activa por umbral (`TOOLBAR_COMPACT_BELOW`) **o** por contenido
+    (`scrollWidth > clientWidth`), medido en `useLayoutEffect` (sin parpadeo). Para salir de `compact` exige
+    el ancho que pedía la barra completa + 16 px (histéresis, sin rebote), y `topbarLayoutKey` (mapa, tipo,
+    solo lectura, edición de imagen, vista previa) obliga a re-medir al cambiar de mapa. En `compact` el
+    nombre se oculta y la hora de actualización va en el tooltip de «Actualizar».
+32. **Labels del Document service (verificado en el tenant el 28-oct-2026).** El listado solo las trae con
+    `addFields: "labels"`; `getDocumentMetadata` y `getDocument` las traen siempre (`[]` si no hay). El
+    servidor las devuelve **ordenadas** (orden ASCII), así que se comparan como conjunto (`sameLabels`).
+    Labels repetidas → 400. **Toda escritura sube la versión aunque las labels no cambien**: por eso
+    `withAnalyst` devuelve las mismas labels si la membresía no cambia (no re-empaca) y `setAnalystLabel` no
+    escribe si `sameLabels`. `restoreSnapshot` revierte contenido y nombre, pero **no** las labels. El SDK
+    envía las labels unidas por comas: una label con coma se partiría (los ids SSO no tienen).
+33. **Errores del Document service:** `e.status` no existe; el código viene en `e.response.status` (409
+    conflicto de versión, 403 sin permiso, 400 validación). `httpStatus` de `analystRole.ts` lo lee así.
+34. **Re-compartir:** los mapas tienen `isReshareable: true` (verificado en prod), así que quien tiene
+    Edición puede compartir con cualquier rol. El analista también tiene escritura por debajo; la app le
+    deshabilita Compartir y bloquea el modal (`locked`), pero la protección es de la app, no de la plataforma.
 
 ## 12. Troubleshooting
 
@@ -594,6 +640,8 @@ viajan con la app (son documentos por tenant), usar Exportar/Importar JSON para 
 | El selector no encuentra una entidad que existe | Tipo equivocado en el selector, o el nombre no contiene el término | Cambiar tipo / término |
 | Link «abrir en Smartscape» cae al mapa general | Se rompió el formato del deep-link (ver gotcha #2 y comentario en `entityModel.ts`) | Restaurar formato `all-topology` + `now%28%29` |
 | Mapa borrado por accidente |, | Papelera (30 días) o historial de versiones |
+| Analista: «El análisis quedó solo en tu pantalla…» | `saveAnalysis` no pudo guardar: cambió su rol, el mapa no es válido, superó el tamaño, 3 conflictos seguidos o perdió el permiso (el motivo sale en el mensaje) | Según el motivo: recargar, revisar el acceso en Compartir o volver a correr el análisis |
+| «Este mapa ya tiene el máximo de 50 analistas» | Tope de 25 labels por documento (2 analistas por label) | Pasar a alguien a Solo lectura o a Edición |
 
 ## 13. Appendix · Contexto para agentes de IA
 

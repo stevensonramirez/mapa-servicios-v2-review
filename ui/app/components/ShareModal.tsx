@@ -10,9 +10,11 @@ import {
   ChevronDownIcon,
   CheckmarkIcon,
   AccountIcon,
+  AiIcon,
 } from "@dynatrace/strato-icons";
 import { useMapShare } from "./useMapShare";
 import type { ShareRole, FoundUser } from "./useMapShare";
+import { ANALYST_ROLE_ENABLED } from "./analystRole";
 import { useT } from "../i18n";
 
 type Props = {
@@ -24,6 +26,7 @@ type Props = {
 
 const ROLE_META: Record<ShareRole, { icon: React.ReactNode }> = {
   read: { icon: <ViewIcon size={14} /> },
+  analyst: { icon: <AiIcon size={14} /> },
   "read-write": { icon: <EditIcon size={14} /> },
 };
 
@@ -34,12 +37,14 @@ const RoleSelect = ({
   onChange,
   onRemove,
   disabled,
+  allowAnalyst = false,
   size = "md",
 }: {
   value: ShareRole;
   onChange: (r: ShareRole) => void;
   onRemove?: () => void; // si se pasa, agrega la opción "Quitar acceso" al menú
   disabled?: boolean;
+  allowAnalyst?: boolean; // ofrecer «Analista» (solo personas y con el interruptor encendido)
   size?: "md" | "sm";
 }) => {
   const t = useT();
@@ -47,7 +52,7 @@ const RoleSelect = ({
   const cur = ROLE_META[value];
 
   const roleLabel = (r: ShareRole): string =>
-    r === "read" ? t("share.readOnly") : t("share.readWrite");
+    r === "read" ? t("share.readOnly") : r === "analyst" ? t("share.analyst") : t("share.readWrite");
 
   const option = (r: ShareRole) => (
     <Menu.Item
@@ -83,6 +88,7 @@ const RoleSelect = ({
       </Menu.Trigger>
       <Menu.Content>
         {option("read")}
+        {(allowAnalyst || value === "analyst") && option("analyst")}
         {option("read-write")}
         {onRemove && (
           <Menu.Item className="mapa-roledd-remove" onSelect={onRemove}>
@@ -99,13 +105,14 @@ const RoleSelect = ({
 // Edición. Quien comparte usa sus propios permisos (Forma A).
 export const ShareModal = ({ show, documentId, mapName, onClose }: Props) => {
   const t = useT();
-  const { owner, recipients, loading, busy, error, info, searchUsers, assignAccess, revoke } = useMapShare(
+  const { owner, recipients, loading, busy, error, info, locked, searchUsers, assignAccess, revoke } = useMapShare(
     show ? documentId : null,
   );
 
   const [query, setQuery] = useState("");
   const [role, setRole] = useState<ShareRole>("read");
   const [notify, setNotify] = useState(true);
+  const [rolesInfo, setRolesInfo] = useState(false); // ℹ️ qué hace cada rol
   const [results, setResults] = useState<FoundUser[]>([]);
   const [searching, setSearching] = useState(false);
   const [open, setOpen] = useState(false);
@@ -175,6 +182,7 @@ export const ShareModal = ({ show, documentId, mapName, onClose }: Props) => {
                 className="mapa-share-input"
                 type="text"
                 value={query}
+                disabled={locked}
                 placeholder={t("share.addEmail")}
                 onChange={(e) => setQuery(e.target.value)}
                 onFocus={() => results.length > 0 && setOpen(true)}
@@ -210,7 +218,7 @@ export const ShareModal = ({ show, documentId, mapName, onClose }: Props) => {
                 </div>
               )}
             </div>
-            <RoleSelect value={role} onChange={setRole} disabled={busy} />
+            <RoleSelect value={role} onChange={setRole} disabled={busy || locked} allowAnalyst={ANALYST_ROLE_ENABLED} />
           </div>
           <label className="mapa-share-notify">
             <input type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} />
@@ -218,12 +226,32 @@ export const ShareModal = ({ show, documentId, mapName, onClose }: Props) => {
           </label>
         </div>
 
+        {locked && <div className="mapa-share-info">{t("share.analystLocked")}</div>}
         {error && <div className="mapa-share-error">{error}</div>}
         {info && <div className="mapa-share-info">{info}</div>}
 
         {/* ── Quién tiene acceso ─────────────────────────────────────── */}
         <div className="mapa-share-section">
-          <span className="mapa-share-section-title">{t("share.people")}</span>
+          <span className="mapa-share-section-title mapa-share-title-row">
+            {t("share.people")}
+            {/* ℹ️ qué puede hacer cada rol (la explicación no queda fija en la UI) */}
+            <button
+              type="button"
+              className="mapa-share-infobtn"
+              onClick={() => setRolesInfo((v) => !v)}
+              aria-expanded={rolesInfo}
+              aria-label={t("share.rolesInfoTip")}
+              title={t("share.rolesInfoTip")}
+            >
+              <InformationIcon size={14} />
+            </button>
+          </span>
+          {rolesInfo && (
+            <div className="mapa-share-note">
+              <InformationIcon size={16} />
+              <span>{t("share.rolesInfo")}</span>
+            </div>
+          )}
 
           {/* Propietario (tú) */}
           <div className="mapa-share-row">
@@ -259,11 +287,12 @@ export const ShareModal = ({ show, documentId, mapName, onClose }: Props) => {
               <RoleSelect
                 size="sm"
                 value={r.role}
-                disabled={busy}
+                disabled={busy || locked}
+                allowAnalyst={ANALYST_ROLE_ENABLED && r.type !== "group"}
                 onChange={(nr) => {
                   if (nr !== r.role) void assignAccess({ uid: r.uid, name: r.name, email: r.email, type: r.type === "group" ? "group" : "user" }, nr, false);
                 }}
-                onRemove={() => void revoke(r.uid)}
+                onRemove={locked ? undefined : () => void revoke(r.uid)}
               />
             </div>
           ))}

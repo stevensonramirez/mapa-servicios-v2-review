@@ -3,7 +3,7 @@
   "environmentUrl": "https://lqy04258.apps.dynatrace.com/",
   "app": {
     "name": "Mapas de Servicios V2",
-    "version": "0.8.6",
+    "version": "0.9.1",
     "description": "Nodos conectados con estado por Davis o DQL; topologia real de Smartscape.",
     "id": "my.mapaservicios.v2",
     "icon": "icon.svg",

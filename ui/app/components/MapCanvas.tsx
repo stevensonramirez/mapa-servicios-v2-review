@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ReactFlow,
@@ -508,6 +508,8 @@ const MapCanvasInner = () => {
     activeSnapshot,
     loading,
     readOnly,
+    analyst,
+    saveAnalysis,
     sharedIds,
     refreshShares,
     save,
@@ -653,20 +655,46 @@ const MapCanvasInner = () => {
     window.addEventListener("mouseup", onUp);
   }, []);
 
-  // Barra de controles en modo solo-íconos cuando hay poco ancho.
+  // Barra de controles en modo solo-íconos cuando hay poco ancho. Antes era solo
+  // un umbral fijo (720 px): en un Mapa Padre (más botones + «Actualizado
+  // hace…») la barra se desbordaba antes y se cortaban los botones de la derecha.
+  // Ahora pasa a solo-íconos también cuando el CONTENIDO ya no cabe. El texto
+  // «Actualizado hace…» y el nombre ceden primero (ver CSS); los botones nunca.
   const topbarRef = useRef<HTMLDivElement | null>(null);
   const [compact, setCompact] = useState(false);
+  const [topbarW, setTopbarW] = useState(0);
+  const neededWRef = useRef(0); // ancho que pedía la barra completa al compactarse
+  const layoutKeyRef = useRef("");
   useEffect(() => {
     const el = topbarRef.current;
     if (!el || typeof ResizeObserver === "undefined") return;
-    const ro = new ResizeObserver((entries) => {
-      const w = entries[0]?.contentRect.width ?? 0;
-      setCompact(w > 0 && w < TOOLBAR_COMPACT_BELOW);
-    });
+    const ro = new ResizeObserver((entries) => setTopbarW(Math.round(entries[0]?.contentRect.width ?? 0)));
     ro.observe(el);
     return () => ro.disconnect();
     // Reattach cuando la barra (re)aparece al abrir/crear un mapa.
   }, [hasMap]);
+  // Qué botones hay en la barra: si cambia estando compacta, se vuelve a medir
+  // la versión completa (en useLayoutEffect, antes de pintar: sin parpadeo).
+  const topbarLayoutKey = `${activeId}|${isParentMap}|${readOnly}|${imageEditMode}|${previewLabel ? 1 : 0}`;
+  useLayoutEffect(() => {
+    const el = topbarRef.current;
+    if (!el) return;
+    const w = el.clientWidth;
+    if (compact && layoutKeyRef.current !== topbarLayoutKey) {
+      layoutKeyRef.current = topbarLayoutKey;
+      setCompact(false); // re-medir la barra completa con los botones nuevos
+      return;
+    }
+    layoutKeyRef.current = topbarLayoutKey;
+    if (!compact) {
+      if (w > 0 && (w < TOOLBAR_COMPACT_BELOW || el.scrollWidth > w + 1)) {
+        neededWRef.current = Math.max(el.scrollWidth, TOOLBAR_COMPACT_BELOW);
+        setCompact(true);
+      }
+    } else if (w >= neededWRef.current + 16) {
+      setCompact(false); // sobra espacio para la barra completa (con margen: sin rebote)
+    }
+  }, [compact, topbarW, topbarLayoutKey]);
 
   // Renombrar el mapa activo desde la barra (clic en el nombre).
   const [nameEditing, setNameEditing] = useState(false);
@@ -1695,6 +1723,14 @@ const MapCanvasInner = () => {
     try {
       const result = await analyzeRootCause(activeId || "", activeName || "", input, rcEdges, setRcBusy, ac.signal, children);
       if (ac.signal.aborted) return;
+      // Analista: su sesión no guarda el mapa (es de solo lectura); el análisis se
+      // guarda aparte, cambiando SOLO `settings.rootCause` sobre la última versión.
+      // Si no se pudo, igual lo ve en su pantalla y se le avisa por qué.
+      if (analyst) {
+        const saved = await saveAnalysis({ kind: "set", analysis: result });
+        if (ac.signal.aborted) return;
+        if (!saved.ok) setRcError(t("rca.saveFail", { reason: t(`rca.saveFail.${saved.reason}`) }));
+      }
       // Se guarda en el mapa (ajustes) → lo ven todos los que lo abran.
       setSettings((s) => ({ ...s, rootCause: result }));
     } catch (e) {
@@ -1707,15 +1743,41 @@ const MapCanvasInner = () => {
         setRcBusy(null);
       }
     }
-  }, [displayNodes, edges, activeId, activeName, t, isParentMap, loadSnapshot]);
+  }, [displayNodes, edges, activeId, activeName, t, isParentMap, loadSnapshot, analyst, saveAnalysis]);
   // «Limpiar análisis» (editores): quita el análisis guardado y sus marcas para
   // todos. Va al historial del mapa, así que ↶ lo devuelve. Los comentarios ya
   // publicados en Problems se quedan (son historia del incidente).
   const rcClear = useCallback(() => {
     setRcOpen(null);
     setRcError(null);
-    setSettings((s) => ({ ...s, rootCause: undefined }));
-  }, []);
+    if (!analyst) {
+      setSettings((s) => ({ ...s, rootCause: undefined }));
+      return;
+    }
+    // Analista: se borra en el mapa solo el análisis que está viendo; si alguien
+    // ya corrió uno más nuevo, se le muestra ese en vez de borrarlo. El
+    // AbortController descarta la respuesta si en el medio cambió de mapa.
+    rcAbortRef.current?.abort();
+    const ac = new AbortController();
+    rcAbortRef.current = ac;
+    void saveAnalysis({ kind: "clear", executionId: settings.rootCause?.executionId })
+      .then((r) => {
+        if (ac.signal.aborted) return;
+        if (!r.ok) {
+          setRcError(t("rca.clearFail", { reason: t(`rca.saveFail.${r.reason}`) }));
+          return;
+        }
+        if (!r.written && r.reason === "newer") {
+          setSettings((s) => ({ ...s, rootCause: r.current as RcAnalysis }));
+          setRcError(t("rca.clearNewer"));
+          return;
+        }
+        setSettings((s) => ({ ...s, rootCause: undefined }));
+      })
+      .finally(() => {
+        if (rcAbortRef.current === ac) rcAbortRef.current = null;
+      });
+  }, [analyst, saveAnalysis, settings.rootCause, t]);
   // Al cambiar de mapa se cancela el análisis en curso y se limpia el estado.
   // La visita a un hijo se conserva solo mientras se esté en ese hijo.
   useEffect(() => {
@@ -3324,6 +3386,9 @@ const MapCanvasInner = () => {
   // Lienzo BLOQUEADO para edición: vista previa de una versión o mapa de solo
   // lectura. Apaga toolbar de edición, "+", arrastre, conexiones y selección.
   const locked = previewing || readOnly;
+  // Causa raíz: el ANALISTA (readOnly) también puede correrla, volver a correrla y
+  // limpiarla. Para los demás perfiles da exactamente lo mismo que `locked`.
+  const rcLocked = previewing || (readOnly && !analyst);
   // Contexto del popup de nodos (lo consume SeverityNode): abrir su editor.
   const popUi = useMemo(
     () => ({
@@ -3455,7 +3520,7 @@ const MapCanvasInner = () => {
                 : saveState === "error"
                   ? t("toolbar.saveError")
                   : saveState === "readonly"
-                    ? t("toolbar.readonly")
+                    ? t(analyst ? "toolbar.analyst" : "toolbar.readonly")
                     : t("toolbar.saved")
             }
             aria-label={
@@ -3464,7 +3529,7 @@ const MapCanvasInner = () => {
                 : saveState === "error"
                   ? t("toolbar.saveError")
                   : saveState === "readonly"
-                    ? t("toolbar.readonly")
+                    ? t(analyst ? "toolbar.analyst" : "toolbar.readonly")
                     : t("toolbar.saved")
             }
           >
@@ -3628,7 +3693,7 @@ const MapCanvasInner = () => {
                 className="mapa-ghostbtn"
                 onClick={refreshNow}
                 aria-label={t("parent.refresh")}
-                title={t("parent.refresh")}
+                title={`${t("parent.refresh")} · ${lastRefreshLabel}`}
               >
                 <SyncIcon size={16} />
                 {!compact && <span>{t("parent.refresh")}</span>}
@@ -3640,7 +3705,7 @@ const MapCanvasInner = () => {
               problemas activos del mapa (en un Mapa Padre, también los de sus
               hijos). Solo editores y solo si hay nodos en advertencia o error.
               De visita en un hijo no se ofrece: el análisis visible es del padre. */}
-          {!locked && !rcVisiting && (
+          {!rcLocked && !rcVisiting && (
             <button
               type="button"
               className="mapa-ghostbtn mapa-rc-btn"
@@ -3802,8 +3867,8 @@ const MapCanvasInner = () => {
                 analysis={rcShown}
                 busy={rcBusy}
                 error={rcError}
-                canRun={!locked && !rcVisiting && rcHasProblems && !rcBusy}
-                canClear={!locked && !rcVisiting && !rcBusy && !!settings.rootCause}
+                canRun={!rcLocked && !rcVisiting && rcHasProblems && !rcBusy}
+                canClear={!rcLocked && !rcVisiting && !rcBusy && !!settings.rootCause}
                 cleared={rcAllResolved}
                 onClear={rcClear}
                 nodeName={rcNodeName}
@@ -3913,7 +3978,7 @@ const MapCanvasInner = () => {
         node={whyNode as Node<SeverityNodeData> | null}
         connRule={whyConnRule}
         onClose={() => setWhyNodeId(null)}
-        rcCanRun={!locked && !rcVisiting && rcHasProblems && !rcBusy}
+        rcCanRun={!rcLocked && !rcVisiting && rcHasProblems && !rcBusy}
         onRunRootCause={runRootCause}
       />
       <EdgeEditorModal

@@ -3894,3 +3894,53 @@ button.mapa-why-assist-mini {
 
 /* Aviso «contenido del mapa no es válido» (mismo marco que el estado vacío). */
 .mapa-empty-icon.mapa-invalid-icon { color: #c4231c; background: color-mix(in srgb, #c4231c 12%, transparent); }
+
+/* ── Prioridad en la barra superior ─────────────────────────────────────────
+   Los BOTONES nunca se encogen ni se cortan. Con poco ancho ceden, en orden: el
+   texto «Actualizado hace…» (Mapa Padre, con «…»), luego el nombre del mapa; si
+   aun así no cabe, la barra pasa a solo-íconos (MapCanvas: compact) y ahí el
+   texto se oculta (la hora queda en el tooltip de «Actualizar»). */
+.mapa-topbar > :not(.mapa-mapname-wrap):not(.mapa-topbar-spacer):not(.mapa-refreshinfo) {
+  flex-shrink: 0;
+}
+.mapa-refreshinfo {
+  display: block;
+  flex: 0 3 auto;
+  min-width: 64px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mapa-mapname-wrap {
+  min-width: 96px;
+}
+.mapa-topbar-compact .mapa-mapname-wrap {
+  min-width: 0;
+}
+.mapa-topbar-compact .mapa-refreshinfo {
+  display: none;
+}
+
+/* Compartir: ℹ️ junto a «Personas con acceso» (qué puede hacer cada rol). */
+.mapa-share-title-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.mapa-share-infobtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.mapa-share-infobtn:hover,
+.mapa-share-infobtn[aria-expanded="true"] {
+  color: var(--dt-colors-text-primary-default, #464cce);
+  background: var(--dt-colors-background-container-neutral-default, rgba(127, 127, 127, 0.08));
+}

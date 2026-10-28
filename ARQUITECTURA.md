@@ -3,7 +3,7 @@
 Documento de arquitectura de **Mapas de Servicios V2** (`my.mapaservicios.v2`), una app nativa de
 **Dynatrace AppEngine** para modelar mapas de servicios curados con estado vivo. Describe el stack
 técnico, las decisiones de diseño, el modelo de escalabilidad y las prácticas con las que se
-desarrolla y mantiene. Versión de referencia: **0.8.6** (28 de octubre de 2026; validación estricta del contenido de los mapas; las 3 IAs —CoPilot, Assist y causa raíz— encendidas en todos los mapas, causa raíz también en Mapas Padre, con los problemas cerrados en los últimos 15 minutos y limpieza del mapa cuando todo se resuelve).
+desarrolla y mantiene. Versión de referencia: **0.9.1** (28 de octubre de 2026; rol Analista al compartir; barra superior con prioridad a los botones; validación estricta del contenido de los mapas; las 3 IAs —CoPilot, Assist y causa raíz— encendidas en todos los mapas, causa raíz también en Mapas Padre, con los problemas cerrados en los últimos 15 minutos y limpieza del mapa cuando todo se resuelve).
 
 ---
 
@@ -183,9 +183,27 @@ y la experiencia de usuario encima de eso.
 - **Confiabilidad:** la confianza que se muestra es **calculada con evidencia verificable** (6 señales),
   no la que se pone la IA; los ids que devuelve la IA se validan contra el contexto (anti-alucinación).
 - **Consumo:** cada análisis = 1 ejecución de workflow + 1 consulta a la IA agéntica + consultas DQL
-  pequeñas (`dt.davis.problems`, `dt.davis.events`, Smartscape). Solo corre cuando un editor lo pide.
+  pequeñas (`dt.davis.problems`, `dt.davis.events`, Smartscape). Solo corre cuando un editor o un
+  analista lo pide.
 - **Seguridad:** IPs y correos se enmascaran antes de la IA; el workflow corre con su actor (grupo del
   cliente); los comentarios en los problemas los ve cualquiera que abra el problema.
+
+### Rol Analista (v0.9.0)
+- **Necesidad:** operadores que revisan errores sin modificar el mapa, que corren la causa raíz y cuyo
+  análisis ven todos (para no repetirlo). El rol lo asigna quien comparte (dueño o editor), sin
+  administración de IAM.
+- **Diseño:** el analista recibe el share `read-write` y una **label** del documento (`an:<sso-id>;<sso-id>`,
+  dos personas por label). La app resuelve el rol al abrir el mapa (`access` + `owner` + `labels`) y trata al
+  analista como lector: lo único que escribe es `settings.rootCause`, con bloqueo optimista (relee, confirma el
+  rol, parcha, valida y reintenta ante conflicto), así nunca pisa cambios de un editor.
+- **Por qué labels:** no crean documentos adicionales; viven en la metadata, así que no las alteran el autosave
+  del contenido, deshacer, duplicar, descargar ni restaurar una versión (verificado en el tenant); y el listado
+  las trae sin consultas extra.
+- **Por persona:** la app resuelve el rol por persona; las APIs de IAM disponibles para la app buscan usuarios y
+  grupos, sin listar membresías.
+- **Calidad:** el núcleo (`analystRole.ts`) es código puro con 341 pruebas automáticas (transiciones de rol con
+  fallos simulados en cada paso, guardado contra un Document service simulado) y se verificó contra el
+  Document service real antes de producción.
 
 ## 5. Escalabilidad
 
@@ -305,10 +323,13 @@ copia sincronizada en el vault de conocimiento del equipo.
   no hay llamadas de red fuera de los SDK de la plataforma, y la app hereda el sandbox de iframe de
   AppEngine.
 - **Permisos de mapas por la plataforma:** compartir usa direct-shares del Document service con
-  cubos read / read-write (personas o grupos). La app **conoce el permiso al abrir el mapa** (campo
-  `access` del documento, en el listado y en la metadata) y aplica un modo de **vista pura** para
-  quien solo tiene lectura: sin edición, duplicado, descarga, compartir ni acceso al DQL de los
-  nodos. Un 403 al guardar sigue siendo la red de seguridad si `access` no viniera.
+  cubos read / read-write (personas o grupos). La app **conoce el rol al abrir el mapa** (`access`,
+  `owner` y `labels` del documento, en el listado y en la metadata) y aplica un modo de **vista pura**
+  para quien solo tiene lectura y para el analista: sin edición, duplicado, descarga, compartir ni
+  acceso al DQL de los nodos. Un 403 al guardar sigue siendo la red de seguridad si `access` no viniera.
+- **Analista:** la restricción la aplica la app (por debajo tiene escritura para poder guardar el
+  análisis). Solo escribe `settings.rootCause`, valida el mapa antes de escribir y usa bloqueo optimista;
+  Compartir y toda la edición quedan deshabilitados para él.
 
 ## 9. Límites conocidos y mitigaciones
 
@@ -322,13 +343,16 @@ Estado actual de los límites de diseño y cómo se manejan.
 | Custom devices en el catálogo | El modelo nuevo de Smartscape del tenant aún no expone las custom devices de extensiones | Su estado sí es representable hoy por DQL propio; el binding por catálogo clásico está diseñado como extensión futura |
 | Jerarquía de mapas | Máximo dos niveles: un Mapa Padre incrusta Mapas de Servicio, y un mapa se incrusta una sola vez | Restricción de diseño validada al agregar el sub-mapa; acota el fan-out de consultas y mantiene la lectura del tablero |
 | Rutas de conexiones en mapas muy densos | La evasión de nodos es heurística (no A*) | Suficiente para mapas curados típicos; A* identificado como mejora si aparece la necesidad |
+| Rol Analista | La restricción la aplica la app: por API, un analista podría editar el documento | Decisión consciente para que su análisis lo vean todos; desde la app solo escribe `settings.rootCause`, con validación y bloqueo optimista |
+| Analistas por mapa | Máximo 50 (25 labels × 2 personas) y solo personas | Compartir avisa al llegar al tope; para grupos están Solo lectura y Edición |
+| Ediciones simultáneas del contenido | Rige «el último que escribe gana»: un editor con el mapa abierto desde antes de un análisis puede reemplazarlo al guardar | El análisis también queda como comentario en Problems y se puede volver a correr |
 | Entrada al modo agéntico de Dynatrace Assist | La plataforma no expone un deep-link al panel de Assist ni una vía de API que preserve el modo Agentic | Puente por portapapeles + ventana nueva: la app copia la pregunta con el contexto y abre el panel; el usuario pega, activa Agentic y envía. Si el navegador niega el portapapeles, la ventana se abre igual con el aviso correspondiente |
 
 ## 10. Operación: deploy, versiones y rollback
 
 ```bash
 # Verificar (siempre antes de desplegar)
-npx tsc --noEmit -p ui/tsconfig.json && npx eslint ui/app
+npx tsc --noEmit -p ui/tsconfig.json && npx eslint ui/app && node --no-warnings --test tests/
 
 # Desplegar (dt-app usa app.config.json: id, versión, scopes)
 npm run deploy
@@ -342,6 +366,10 @@ git checkout <commit> -- . && npm run deploy
   (la plataforma rechaza redesplegar el mismo número con otro contenido).
 - Apps del ciclo: `my.mapaservicios.v2` (producción) y `my.mapaservicios.v2.staging` (pruebas),
   ambas en el mismo tenant, totalmente aisladas en datos.
+- **Rol Analista:** kit de rollback en `rollback/` (procedimiento en `rollback/README.md`). Nivel 1 apaga
+  la opción en Compartir (`ANALYST_ROLE_ENABLED`); nivel 2 publica el código de la v0.8.7 con una versión
+  nueva, después de pasar a Solo lectura a los analistas (la v0.8.7 no lee las labels). Los dos scripts se
+  ensayan con `--probar` sin publicar.
 
 ---
 
@@ -375,6 +403,10 @@ Para hacer cambios sin redescubrir el proyecto. Complementa el mapa de archivos 
 | `ui/app/components/submapRules.ts` + `ColorRules.tsx` | Motor de reglas de color (hasta 3 filas, primera que se cumple) y su editor |
 | `ui/app/components/MapPicker.tsx` + `mapLink.ts` | Selector del mapa a incrustar y enlace al mapa hijo |
 | `ui/app/components/NewMapModal.tsx` | Modal de creación con el tipo de mapa (fijo al crear) |
+| `ui/app/components/analystRole.ts` | Rol Analista, núcleo puro: labels `an:`, regla de rol, plan de cambios de rol, guardado del análisis con bloqueo optimista, interruptor `ANALYST_ROLE_ENABLED` |
+| `ui/app/components/useMapShare.ts` + `ShareModal.tsx` | Compartir con 3 roles (Solo lectura / Analista / Edición) y la ℹ️ de los roles |
+| `tests/` | 341 pruebas del núcleo del rol Analista (`node --no-warnings --test tests/`) |
+| `rollback/` | Kit de rollback del rol Analista (nivel 1 y 2, listado de analistas) |
 | `ui/app/i18n.tsx` | Diccionarios es/en/fr/de |
 
 ### Gotchas verificados (no redescubrir)
@@ -396,6 +428,11 @@ Para hacer cambios sin redescubrir el proyecto. Complementa el mapa de archivos 
   nueva (el detalle completo está en el comentario de `assistIntent.ts`).
 - El id canónico persistido es SIEMPRE el clásico (es el que entienden Davis y los mapas viejos);
   el id nuevo va aparte como `sid`.
+- Labels del Document service: el listado solo las trae con `addFields: "labels"`; el servidor las devuelve
+  ordenadas (se comparan como conjunto); repetidas → 400; toda escritura sube la versión aunque no cambien
+  (por eso no se escriben si son las mismas); `restoreSnapshot` no las revierte. Los errores traen el código
+  en `e.response.status` (no en `e.status`).
+- Los mapas tienen `isReshareable: true`: quien tiene Edición puede compartir con cualquier rol.
 - Staging se aísla por `DOC_TYPE`, prefijo de `localStorage` y `LANG_KEY` (`mapa-v2-staging*`); su
   git NO tiene remoto (nunca hacer push desde staging).
 - Flujo de cambio: editar en staging → `tsc` + lint → deploy staging → prueba del usuario → patch

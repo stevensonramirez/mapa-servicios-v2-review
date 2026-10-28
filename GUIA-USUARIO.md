@@ -352,9 +352,9 @@ leyenda lo avisa para volver a analizar.
 
 **Cuando todo pasa, el mapa se limpia solo.** Si **todos** los problemas del análisis ya se cerraron, los nodos
 quedan **sin marcas** y la leyenda lo dice («el mapa quedó sin marcas»); el análisis sigue disponible en la
-leyenda por si quieres revisarlo. Para quitarlo del todo, los editores tienen el botón **«Limpiar»** en el pie
-de la leyenda: borra el análisis y sus marcas para todos (se puede deshacer con ↶). Los comentarios que ya se
-publicaron en *Problems* se conservan.
+leyenda por si quieres revisarlo. Para quitarlo del todo, los editores y los analistas tienen el botón **«Limpiar»**
+en el pie de la leyenda: borra el análisis y sus marcas para todos (si lo limpia un editor, se puede deshacer con
+↶). Los comentarios que ya se publicaron en *Problems* se conservan.
 
 **Confianza calculada.** La confianza no es la que se pone la IA. Por cada relación causa → efecto se
 revisan seis señales verificables: relación en Smartscape, orden en el tiempo, raíz según Davis,
@@ -368,7 +368,8 @@ por mapa, y cada análisis lo actualiza. Cada comentario empieza con **quién so
 cuándo (👤 *Solicitado por*), y ese nombre también aparece junto al mapa en el «via…» del comentario.
 
 **Condiciones de uso**
-- Solo los **editores** ejecutan el análisis; quien tiene el mapa en lectura ve el último guardado.
+- Ejecutan el análisis los **editores** y los **analistas** (ver §9); quien tiene el mapa en solo lectura ve el
+  último guardado.
 - Aplica a **Mapas de Servicio** y **Mapas Padre** (en el padre, con un nivel de hijos; los hijos sin acceso
   para quien analiza no aportan problemas).
 - Se analizan **problemas de Davis sin duplicados**, **activos o cerrados en los últimos 15 minutos**, de
@@ -384,17 +385,24 @@ cuándo (👤 *Solicitado por*), y ese nombre también aparece junto al mapa en 
 - Los usuarios necesitan los permisos `automation:workflows:run` y `automation:workflows:read`.
 
 ## 9. Compartir, URLs e historial de versiones
-- **Compartir**: botón «Compartir» → busca una **persona** (por nombre o correo) o un **grupo** de
-  Dynatrace (por nombre; aparece con la etiqueta «Grupo») → elige **lectura** o **lectura y edición**.
+- **Compartir**: botón «Compartir» → elige el rol (**Solo lectura**, **Analista** o **Edición**) → busca una
+  **persona** (por nombre o correo) o un **grupo** de Dynatrace (por nombre; aparece con la etiqueta «Grupo»).
   Al compartir con un grupo, el mapa les aparece en la lista a **todos sus miembros**. Por debajo usa
   los permisos nativos de documentos de Dynatrace; también puedes ver y revocar accesos existentes.
   Para que la búsqueda de grupos muestre resultados, quien comparte necesita permiso para ver los
-  grupos del account (lo define el administrador de Dynatrace).
+  grupos del account (lo define el administrador de Dynatrace). El ícono ℹ️ junto a «Personas con acceso»
+  explica qué hace cada rol.
+- **Quién comparte**: el dueño del mapa y cualquier persona con **Edición** pueden compartirlo, con cualquier rol.
+- **Rol Analista**: igual a *Solo lectura*, pero puede correr el **análisis de causa raíz** (§8), volver a
+  correrlo y limpiarlo. Su análisis queda guardado en el mapa y lo ven todos, así nadie tiene que repetirlo. No
+  puede modificar el mapa ni compartirlo. Se asigna a **personas** (no a grupos), hasta **50 por mapa**.
 - **Qué ve quien recibe un mapa en lectura**: el mapa en modo **vista**. Puede hacer zoom, desplazarse,
   ver los estados en vivo y la burbuja «¿Por qué está así?», pero nada más: sin «+», sin arrastrar ni
   conectar, sin popup «Editar», sin abrir el editor de un nodo (tampoco su DQL), sin menú ⋮ (renombrar,
   duplicar, descargar, convertir, eliminar), sin Compartir ni historial. La app lo sabe desde que abre el
   mapa (candado en la barra), no al intentar guardar.
+- **Qué ve un analista**: lo mismo que en lectura, más el botón **✨ Causa raíz** de la barra y «Limpiar» en la
+  leyenda del análisis. Al pasar el mouse por el candado de la barra se lee «Analista».
 - **URL por mapa**: cada mapa tiene su URL propia (`…/map/<id>`). Compártela y, si la persona tiene
   acceso, abre directo ese mapa; si no lo tiene, ve un aviso claro (el acceso se otorga con
   «Compartir»).
@@ -426,6 +434,9 @@ Otros controles:
 - **Imagen de fondo** del lienzo (desde el menú de la toolbar).
 - **Modo vista** (candado): el mapa es de solo lectura para ti (compartido sin edición). Se bloquea
   toda edición: la toolbar de edición se oculta y los nodos no abren editor (ver §9).
+- **Barra en pantallas angostas**: los botones siempre se ven completos. Si la ventana se angosta, primero se
+  recortan el texto «Actualizado hace…» (Mapa Padre) y el nombre del mapa; si aun así no caben, la barra
+  muestra solo íconos y la hora de actualización queda en el tooltip de «Actualizar».
 - **Acerca de**: versión de la app .
 ## 11. Consumo de Grail (costo)
 La app es deliberadamente frugal con Grail:
@@ -462,7 +473,8 @@ caro amerita optimizarse o cambiarse por atadura a entidad.
    del negocio (contrato 0/1/2).
 2. Revisa en la leyenda de Grail cuánto cuesta esa consulta por hora y ajusta el timeframe si hace falta.
 ### E) Entregar el mapa a otro equipo
-1. «Compartir» → el grupo del equipo (o las personas una a una), con lectura o edición según el caso.
+1. «Compartir» → el grupo del equipo (o las personas una a una), con *Solo lectura*, *Analista* o *Edición*
+   según el caso (el rol Analista se asigna por persona).
 2. Envíales la **URL del mapa**.
 3. Si se quiere restaurar otra versión, restauras desde el **historial de versiones**; si se borra el mapa, se recupera
    de la **papelera** (30 días).

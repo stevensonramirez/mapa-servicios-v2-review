@@ -2,7 +2,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { validateMapContent } from "./mapValidation";
 import type { InvalidMap } from "./mapValidation";
 import { documentsClient, trashClient, directSharesClient } from "@dynatrace-sdk/client-document";
+import { getCurrentUserDetails } from "@dynatrace-sdk/app-environment";
 import type { Edge, Node } from "@xyflow/react";
+import { resolveRole, isReadOnlyRole, saveAnalysisWith } from "./analystRole";
+import type { RcPatch, SaveResult, RoleInput } from "./analystRole";
 import type { MapSettings } from "./mapSettings";
 import { DEFAULT_SETTINGS, DEFAULT_GLOW } from "./mapSettings";
 import { corexDql } from "./mapSeed";
@@ -46,7 +49,9 @@ export type MapSnapshot = { nodes: Node[]; edges: Edge[]; settings?: MapSettings
 export type SaveState = "idle" | "saving" | "saved" | "error" | "readonly";
 // `readOnly`: el usuario NO tiene permiso de escritura sobre el documento (un
 // mapa compartido en "solo lectura"). Sale del campo `access` del Document service.
-export type MapMeta = { id: string; name: string; version: string; mapType: MapType; readOnly: boolean };
+// `analyst`: la persona es ANALISTA del mapa (ver analystRole.ts): la app lo trata
+// como solo lectura (readOnly=true) salvo la causa raíz.
+export type MapMeta = { id: string; name: string; version: string; mapType: MapType; readOnly: boolean; analyst: boolean };
 
 // El tipo CANÓNICO vive en el contenido del documento (el snapshot). Se espeja
 // además en el `type` del documento: los Mapas Padre se crean con DOC_TYPE_PARENT.
@@ -291,8 +296,21 @@ const isForbidden = (e: unknown): boolean => {
 // ¿El usuario puede escribir este documento? `access` viene en el listado y en la
 // metadata (["read"] = compartido en solo lectura; el dueño trae read/write/delete).
 // Si el campo no viniera, se asume escribible: el guardado con 403 sigue de red.
-function hasWrite(access: unknown): boolean {
-  return !Array.isArray(access) || access.includes("write");
+// (Ese criterio vive ahora en analystRole.ts → hasWriteAccess / resolveRole.)
+
+// Id SSO de quien usa la app (para saber si es dueño o analista de un mapa).
+const currentUserId = (): string => {
+  try {
+    return getCurrentUserDetails().id ?? "";
+  } catch {
+    return "";
+  }
+};
+// Rol sobre un documento → { readOnly, analyst }. Sin label de analista da lo
+// mismo que antes (readOnly = sin permiso de escritura).
+const roleFlags = (meta: RoleInput): { readOnly: boolean; analyst: boolean } => {
+  const role = resolveRole(meta, currentUserId());
+  return { readOnly: isReadOnlyRole(role), analyst: role === "analyst" };
 };
 
 // Cadencia de versiones: tras ~3 min SIN cambios después de editar, se crea UN
@@ -312,6 +330,9 @@ export const useMapLibrary = () => {
   // Se sabe DESDE QUE SE ABRE (campo `access` del documento) y la UI bloquea toda
   // edición; como red, un guardado con 401/403 también lo enciende.
   const [readOnly, setReadOnly] = useState(false);
+  // El mapa activo es de ANALISTA: readOnly=true y además puede guardar SOLO el
+  // análisis de causa raíz (saveAnalysis).
+  const [analyst, setAnalyst] = useState(false);
   // Ids de los mapas que están compartidos con alguien (para marcarlos en la lista).
   const [sharedIds, setSharedIds] = useState<Set<string>>(new Set());
 
@@ -328,9 +349,10 @@ export const useMapLibrary = () => {
   const readOnlyRef = useRef(false); // espejo de readOnly para closures de guardado
 
   // Aplica un mapa como activo: fija versión/contenido base (para dedupe) y estado.
-  const applyActive = useCallback((id: string | null, name: string, snap: MapSnapshot, version: string | null, roIn = false) => {
+  const applyActive = useCallback((id: string | null, name: string, snap: MapSnapshot, version: string | null, roIn = false, analystIn = false) => {
     // Mapa con contenido inválido: solo lectura SIEMPRE (no se guarda nada encima).
     const ro = roIn || !!snap.invalid;
+    setAnalyst(analystIn && !snap.invalid);
     activeIdRef.current = id;
     versionRef.current = version;
     lastSavedRef.current = serialize(snap);
@@ -371,18 +393,19 @@ export const useMapLibrary = () => {
           sort: "-modificationInfo.lastModifiedTime",
           pageSize: 100,
           pageKey,
+          addFields: "labels", // quién es analista de cada mapa (ver analystRole.ts)
         });
         for (const d of list.documents) {
           const lm: unknown = d.modificationInfo?.lastModifiedTime;
           const ts = lm instanceof Date ? lm.getTime() : typeof lm === "string" ? Date.parse(lm) : 0;
-          all.push({ id: d.id, name: d.name, version: d.version, mapType, readOnly: !hasWrite(d.access), ts });
+          all.push({ id: d.id, name: d.name, version: d.version, mapType, ...roleFlags(d), ts });
         }
         pageKey = list.nextPageKey ?? undefined;
       } while (pageKey);
     }
     return all
       .sort((a, b) => b.ts - a.ts)
-      .map((e) => ({ id: e.id, name: e.name, version: e.version, mapType: e.mapType, readOnly: e.readOnly }));
+      .map((e) => ({ id: e.id, name: e.name, version: e.version, mapType: e.mapType, readOnly: e.readOnly, analyst: e.analyst }));
   }, []);
 
   const refreshList = useCallback(async () => {
@@ -459,7 +482,7 @@ export const useMapLibrary = () => {
           const pick = (remembered && list.find((m) => m.id === remembered)) || list[0];
           const snap = await fetchSnapshot(pick.id);
           if (cancelled) return;
-          applyActive(pick.id, pick.name, snap, pick.version, pick.readOnly);
+          applyActive(pick.id, pick.name, snap, pick.version, pick.readOnly, pick.analyst);
         }
         readyRef.current = true; // a partir de aquí se habilita el guardado
         setLoading(false);
@@ -653,8 +676,8 @@ export const useMapLibrary = () => {
         const meta = await documentsClient.getDocumentMetadata({ id });
         const snap = await fetchSnapshot(id);
         if (seq !== openSeqRef.current) return true; // llegó otro openMap: ese manda
-        const ro = !hasWrite(meta.access);
-        applyActive(id, meta.name, snap, meta.version, ro);
+        const { readOnly: ro, analyst: an } = roleFlags(meta);
+        applyActive(id, meta.name, snap, meta.version, ro, an);
         setSaveState(ro ? "readonly" : "idle");
         return true;
       } catch (err) {
@@ -698,7 +721,7 @@ export const useMapLibrary = () => {
         setMaps((prev) =>
           prev.some((m) => m.id === r.id)
             ? prev
-            : [{ id: r.id, name, version: r.version, mapType: type, readOnly: false }, ...prev],
+            : [{ id: r.id, name, version: r.version, mapType: type, readOnly: false, analyst: false }, ...prev],
         );
         await refreshList();
         return r.id;
@@ -719,6 +742,8 @@ export const useMapLibrary = () => {
       if (!clean) return;
       try {
         const meta = await documentsClient.getDocumentMetadata({ id });
+        // Analista: no modifica el mapa (red para una lista lateral desactualizada).
+        if (roleFlags(meta).analyst) throw new Error("analyst");
         const r = await documentsClient.updateDocument({
           id,
           optimisticLockingVersion: meta.version,
@@ -752,6 +777,7 @@ export const useMapLibrary = () => {
         const next: MapSnapshot = { ...snap, mapType: "parent" };
         const json = serialize(next);
         const meta = await documentsClient.getDocumentMetadata({ id });
+        if (roleFlags(meta).analyst) return false; // el analista no modifica el mapa
         const r = await documentsClient.updateDocument({
           id,
           optimisticLockingVersion: meta.version,
@@ -781,6 +807,7 @@ export const useMapLibrary = () => {
     async (id: string) => {
       try {
         const meta = await documentsClient.getDocumentMetadata({ id });
+        if (roleFlags(meta).analyst) throw new Error("analyst"); // el analista no borra el mapa
         await documentsClient.deleteDocument({ id, optimisticLockingVersion: meta.version });
         const remaining = await listMaps();
         setMaps(remaining);
@@ -799,6 +826,7 @@ export const useMapLibrary = () => {
             lastSavedRef.current = null;
             readOnlyRef.current = false;
             setReadOnly(false);
+            setAnalyst(false);
             setActiveId(null);
             setActiveName("");
             setActiveSnapshot(null);
@@ -870,8 +898,45 @@ export const useMapLibrary = () => {
     if (!id) return;
     const snap = await fetchSnapshot(id);
     const meta = await documentsClient.getDocumentMetadata({ id });
-    applyActive(id, meta.name, snap, meta.version, !hasWrite(meta.access));
+    const { readOnly: ro, analyst: an } = roleFlags(meta);
+    applyActive(id, meta.name, snap, meta.version, ro, an);
   }, [fetchSnapshot, applyActive]);
+
+  // ── Analista: guarda SOLO el análisis de causa raíz ─────────────────────────
+  // El analista es readOnly (ningún otro guardado sale de su sesión). Esto lee la
+  // última versión del mapa, confirma que sigue siendo analista, cambia solo
+  // `settings.rootCause` y escribe con bloqueo optimista (ver analystRole.ts).
+  const saveAnalysis = useCallback(async (patch: RcPatch): Promise<SaveResult> => {
+    const id = activeIdRef.current;
+    if (!id) return { ok: false, reason: "error" };
+    const res = await saveAnalysisWith(
+      {
+        getDocument: async (docId) => {
+          const d = await documentsClient.getDocument({ id: docId });
+          const text = d.content ? await d.content.get("text") : "";
+          const m = d.metadata ?? (await documentsClient.getDocumentMetadata({ id: docId }));
+          return { text, version: m.version, access: m.access, owner: m.owner, labels: m.labels };
+        },
+        updateContent: async (docId, version, text) => {
+          const r = await documentsClient.updateDocument({
+            id: docId,
+            optimisticLockingVersion: version,
+            body: { content: blob(text) },
+          });
+          return { version: r.documentMetadata.version };
+        },
+        validate: validateMapContent,
+        isConflict: (e) => errStatus(e) === 409,
+        isForbidden,
+        maxBytes: MAX_DOC_BYTES,
+      },
+      id,
+      currentUserId(),
+      patch,
+    );
+    if (res.ok && activeIdRef.current === id) versionRef.current = res.version;
+    return res;
+  }, []);
 
   // Limpieza de timers pendientes al desmontar.
   useEffect(
@@ -891,6 +956,8 @@ export const useMapLibrary = () => {
     loadError,
     saveState,
     readOnly,
+    analyst,
+    saveAnalysis,
     sharedIds,
     refreshShares,
     save,

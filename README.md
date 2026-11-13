@@ -1,10 +1,10 @@
 # Mapas de Servicios V2
 
 App de Dynatrace AppEngine para dibujar mapas curados de servicios con estado en vivo, análisis de causa
-raíz por workflow y colaboración por roles. Versión 0.9.1.
+raíz por workflow y colaboración por roles. Versión 0.9.2.
 
 Dynatrace AppEngine app for curated service maps with live status, workflow-based root cause analysis
-and role-based collaboration. Version 0.9.1.
+and role-based collaboration. Version 0.9.2.
 
 **[Español](#español)** · **[English](#english)**
 
@@ -34,7 +34,8 @@ app ofrece:
 | `ui/` | Código de la app (React + TypeScript + Strato) |
 | `workflow/` | Fuentes del workflow de causa raíz y el script que arma su JSON |
 | `tests/` | Pruebas unitarias del núcleo de roles y guardado (`node --test`) |
-| `GUIA-USUARIO.md` | Guía funcional para usuarios |
+| `examples/` | Mapas de ejemplo para importar (funcionan en cualquier tenant) |
+| `GUIA-USUARIO.md` / `USER-GUIDE.md` | Guía de usuario (español / inglés) |
 | `DOCUMENTACION-TECNICA.md` | Documentación técnica para quien mantiene la app |
 | `ARQUITECTURA.md` | Decisiones de arquitectura, escalabilidad, seguridad y límites |
 
@@ -127,7 +128,8 @@ Si a un usuario le falta un permiso, solo falla la función correspondiente.
 
 **7. Comprobar**
 
-1. Abrir la app y crear un mapa.
+1. Abrir la app e importar `examples/salud-del-ambiente.es.json` (botón **Importar**, junto a **Nuevo mapa**). Cada
+   nodo muestra los problemas activos de Davis de una capa: frontend, servicios, procesos, Kubernetes y hosts.
 2. Agregar un nodo atado a una entidad de Smartscape y confirmar que toma color.
 3. Compartir el mapa con otra persona como Solo lectura.
 4. En un mapa con un nodo en rojo, ejecutar «Causa raíz»: tarda alrededor de un minuto y muestra la
@@ -169,12 +171,12 @@ Exportar e Importar JSON desde la app.
 
 ### Documentación
 
-- [Guía de usuario](GUIA-USUARIO.md)
+- [Guía de usuario](GUIA-USUARIO.md) · [User guide](USER-GUIDE.md)
 - [Documentación técnica](DOCUMENTACION-TECNICA.md)
 - [Arquitectura](ARQUITECTURA.md)
 - [Workflow de causa raíz](workflow/README.md)
 
-Estos documentos están en español.
+La guía de usuario está en español y en inglés; los demás documentos, en español.
 
 ---
 
@@ -202,7 +204,8 @@ app provides:
 | `ui/` | App source code (React + TypeScript + Strato) |
 | `workflow/` | Root cause workflow sources and the script that builds its JSON |
 | `tests/` | Unit tests for the role and save logic (`node --test`) |
-| `GUIA-USUARIO.md` | User guide |
+| `examples/` | Example maps to import (they work on any tenant) |
+| `GUIA-USUARIO.md` / `USER-GUIDE.md` | User guide (Spanish / English) |
 | `DOCUMENTACION-TECNICA.md` | Technical documentation for maintainers |
 | `ARQUITECTURA.md` | Architecture decisions, scalability, security and limits |
 
@@ -295,7 +298,8 @@ If a user lacks a permission, only the related feature fails.
 
 **7. Check**
 
-1. Open the app and create a map.
+1. Open the app and import `examples/environment-health.en.json` (**Import** button, next to **New map**). Each node shows
+   the active Davis problems of one layer: frontend, services, processes, Kubernetes and hosts.
 2. Add a node bound to a Smartscape entity and confirm it gets a color.
 3. Share the map with another person as View only.
 4. On a map with a red node, run "Root cause": it takes about a minute and shows the legend with the
@@ -337,9 +341,9 @@ Export and Import in the app.
 
 ### Documentation
 
-- [User guide](GUIA-USUARIO.md)
+- [User guide](USER-GUIDE.md) · [Guía de usuario](GUIA-USUARIO.md)
 - [Technical documentation](DOCUMENTACION-TECNICA.md)
 - [Architecture](ARQUITECTURA.md)
 - [Root cause workflow](workflow/README.md)
 
-These documents are in Spanish.
+The user guide is available in English and Spanish; the other documents are in Spanish.

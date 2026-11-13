@@ -126,6 +126,7 @@ export const EntityPicker = ({ value, onChange }: Props) => {
 
   // Se emite SOLO el EntityRef: `ctx` es decoración del selector, no se persiste.
   const pick = (e: EntityCatalogItem) => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { ctx: _ctx, ...ref } = e;
     onChange(ref);
     setOpen(false);

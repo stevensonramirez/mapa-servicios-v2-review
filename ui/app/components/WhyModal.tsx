@@ -718,7 +718,7 @@ export const WhyModal = ({ node, connRule, onClose, rcCanRun, onRunRootCause }: 
                   // siempre visible.
                   const askPrompt = problemAssistPrompt(p); // ✨ siempre, con o sin CoPilot
                   // Papel del problema según el último análisis de causa raíz del mapa.
-                  const eid = String(p["event.id"] ?? "");
+                  const eid = typeof p["event.id"] === "string" ? p["event.id"] : "";
                   const role = rcRoles.get(eid);
                   return (
                     <div key={i} className="mapa-why-problem-row">

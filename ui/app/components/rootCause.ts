@@ -198,8 +198,8 @@ ${DUP}
       ).then((rows) => {
         const byEntity = new Map<string, Set<string>>();
         for (const r of rows) {
-          const e = String(r.affected_entity_ids ?? "");
-          const id = String(r["event.id"] ?? "");
+          const e = str(r.affected_entity_ids) ?? "";
+          const id = str(r["event.id"]) ?? "";
           if (!e || !id) continue;
           if (!byEntity.has(e)) byEntity.set(e, new Set());
           byEntity.get(e)!.add(id);
@@ -217,7 +217,7 @@ ${DUP}
         .then((rows) => {
           byNode.set(
             n.id,
-            rows.map((r) => String(r["event.id"] ?? "")).filter(Boolean),
+            rows.map((r) => str(r["event.id"]) ?? "").filter(Boolean),
           );
         })
         // DQL del nodo con error (p. ej. de sintaxis): ese nodo no aporta problemas.
@@ -280,7 +280,7 @@ export async function analyzeRootCause(
   // RC_CLOSED_WINDOW_MIN (un DQL de nodo sin filtro de estado podría traer
   // cerrados de horas atrás). Sin detalle no se puede saber: el problema se deja.
   const cutoff = Date.now() - RC_CLOSED_WINDOW_MIN * 60_000;
-  const isClosed = (id: string) => String(det.get(id)?.["event.status"] ?? "") === "CLOSED";
+  const isClosed = (id: string) => str(det.get(id)?.["event.status"]) === "CLOSED";
   const vigentes = candidatos.filter((id) => {
     if (!isClosed(id)) return true;
     const end = Date.parse(iso(det.get(id)?.["event.end"]) ?? "");
@@ -300,7 +300,7 @@ export async function analyzeRootCause(
     return [
       isClosed(id) ? 1 : 0, // los activos primero
       num(r?.["event.severity"]) ?? 3, // sin severidad → nivel habitual (SEV-3), no al final
-      CAT[String(r?.["event.category"] ?? "")] ?? 5,
+      CAT[str(r?.["event.category"]) ?? ""] ?? 5,
       -(nodesOf.get(id)?.length ?? 0),
       -(num(r?.afectadas) ?? 0),
       Number.isNaN(t) ? Number.MAX_SAFE_INTEGER : t,

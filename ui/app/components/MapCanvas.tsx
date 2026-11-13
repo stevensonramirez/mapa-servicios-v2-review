@@ -1690,7 +1690,7 @@ const MapCanvasInner = () => {
               if (nodeStatusSource(hd) !== "map" || !hd.mapRef?.id) return;
               const hostName = (hd.liveName || hd.name || "").trim() || hd.mapRef.id;
               submaps[host.id] = { mapId: hd.mapRef.id, name: hostName };
-              let snap;
+              let snap: MapSnapshot;
               try {
                 snap = await loadMapDoc(hd.mapRef.id, loadSnapshot);
               } catch {
@@ -2221,7 +2221,7 @@ const MapCanvasInner = () => {
           port: edgePorts.get(e.id),
           route: edgeRoutes.get(e.id),
           valueOn,
-          value: valueOn ? valueByDql[ed!.valueDql!] : undefined,
+          value: valueOn ? valueByDql[ed.valueDql!] : undefined,
           valueName: valueOn ? ed?.valueLabel : undefined,
           valueLabel: valueOn && ed?.valueShowLabel === true ? ed?.valueLabel : undefined,
           valueUnit: valueOn ? ed?.valueUnit : undefined,
@@ -3709,7 +3709,7 @@ const MapCanvasInner = () => {
             <button
               type="button"
               className="mapa-ghostbtn mapa-rc-btn"
-              onClick={runRootCause}
+              onClick={() => void runRootCause()}
               disabled={!rcHasProblems || !!rcBusy}
               aria-label={t("rca.button")}
               title={rcBusy ? t("rca.busyShort") : rcHasProblems ? t("rca.buttonTip") : t("rca.noProblems")}
@@ -3875,7 +3875,7 @@ const MapCanvasInner = () => {
                 closed={rcClosed}
                 newRed={rcNewRed}
                 onOpen={rcOpenFromLegend}
-                onRerun={runRootCause}
+                onRerun={() => void runRootCause()}
               />
             )}
             {/* Leyenda de consumo estimado de Grail (discreta, abajo-derecha).
@@ -3979,7 +3979,7 @@ const MapCanvasInner = () => {
         connRule={whyConnRule}
         onClose={() => setWhyNodeId(null)}
         rcCanRun={!rcLocked && !rcVisiting && rcHasProblems && !rcBusy}
-        onRunRootCause={runRootCause}
+        onRunRootCause={() => void runRootCause()}
       />
       <EdgeEditorModal
         key={`e-${editorEdgeId ?? "none"}`}

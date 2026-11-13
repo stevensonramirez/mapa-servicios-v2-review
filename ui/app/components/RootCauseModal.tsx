@@ -81,7 +81,7 @@ export const RootCauseModal = ({ analysis, cause, focusNodeId, nodeName, closed,
           {closed?.has(cause.problemId) && <div className="mapa-rc-donebanner">{t("rca.causeResolved")}</div>}
           {fromEffect && (
             <div className="mapa-rc-banner">
-              <span>{t("rca.fromEffect", { node: nodeName(focusNodeId!) })}</span>
+              <span>{t("rca.fromEffect", { node: nodeName(focusNodeId) })}</span>
               {cause.nodeIds[0] && (
                 <button type="button" className="mapa-rc-nodebtn mapa-rc-nodebtn-strong" onClick={() => onFocusNode(cause.nodeIds[0])}>
                   <LocationMarkerIcon size={13} />

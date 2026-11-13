@@ -29,7 +29,7 @@ const severityDataOk = (d: Record<string, unknown>): boolean =>
   optType(d.note, "string") &&
   optType(d.url, "string") &&
   optType(d.icon, "string") &&
-  (d.statusSource === undefined || STATUS_SOURCES.has(String(d.statusSource))) &&
+  (d.statusSource === undefined || (typeof d.statusSource === "string" && STATUS_SOURCES.has(d.statusSource))) &&
   optObjWithId(d.entity) &&
   optObjWithId(d.mapRef) &&
   optArr(d.links) &&
@@ -38,7 +38,7 @@ const severityDataOk = (d: Record<string, unknown>): boolean =>
 const settingsBad = (s: unknown): string | null => {
   if (s === undefined) return null;
   if (!isObj(s)) return "settings";
-  if (s.brandIconStyle !== undefined && !BRAND_STYLES.has(String(s.brandIconStyle))) return "brandIconStyle";
+  if (s.brandIconStyle !== undefined && !(typeof s.brandIconStyle === "string" && BRAND_STYLES.has(s.brandIconStyle))) return "brandIconStyle";
   if (s.refreshIntervalMs !== undefined && !isNum(s.refreshIntervalMs)) return "refreshIntervalMs";
   if (s.parentRefreshMs !== undefined && !isNum(s.parentRefreshMs)) return "parentRefreshMs";
   if (s.glow !== undefined && !isObj(s.glow)) return "glow";
@@ -71,7 +71,7 @@ export const validateMapContent = (v: unknown): InvalidMap | null => {
     if (!isObj(n.data)) return { code: "badNode" };
     if (n.parentId !== undefined && !(typeof n.parentId === "string" && groups.has(n.parentId))) return { code: "badNode" };
     if ((n.width !== undefined && !isNum(n.width)) || (n.height !== undefined && !isNum(n.height))) return { code: "badNode" };
-    const d = n.data as Record<string, unknown>;
+    const d = n.data;
     if (n.type === "severity" && !severityDataOk(d)) return { code: "badNode" };
     if (n.type === "label" && !(optType(d.text, "string") && optType(d.size, "number"))) return { code: "badNode" };
     if (n.type === "image" && !(typeof d.src === "string" && /^data:image\/[a-z.+-]+;base64,/i.test(d.src))) {

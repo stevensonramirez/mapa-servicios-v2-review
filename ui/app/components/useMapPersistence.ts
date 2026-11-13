@@ -452,7 +452,7 @@ export const useMapLibrary = () => {
     if (invalid) return { ...EMPTY_SNAPSHOT, invalid };
     // Normaliza al modelo actual (migración + glow) para que la línea base de
     // guardado coincida con lo que se mostrará y NO se re-escriba al abrir.
-    let snap: MapSnapshot = normalizeSnapshot(parsed as MapSnapshot);
+    const snap: MapSnapshot = normalizeSnapshot(parsed as MapSnapshot);
     // El `type` del DOCUMENTO manda sobre el contenido: la conversión a Mapa
     // Padre es de un solo sentido, y restaurar una versión del historial
     // anterior a la conversión traería el tipo viejo dentro del snapshot —

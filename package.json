@@ -1,7 +1,7 @@
 {
   "name": "mapaservicios-v2",
-  "version": "0.1.0",
-  "description": "Mapas de Servicios: nodos conectados que se iluminan por severidad con DQL en vivo.",
+  "version": "0.9.2",
+  "description": "Dynatrace AppEngine app: curated service maps with live status, AI root cause analysis and role-based sharing.",
   "scripts": {
     "build": "dt-app build",
     "start": "dt-app dev",

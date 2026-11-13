@@ -1,0 +1,123 @@
+{
+  "nodes": [
+    {
+      "id": "l1",
+      "type": "label",
+      "position": {
+        "x": 0,
+        "y": -144
+      },
+      "data": {
+        "text": "## Salud del ambiente por capa\nProblemas activos de Davis por tipo de entidad"
+      }
+    },
+    {
+      "id": "n1",
+      "type": "severity",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "name": "Frontend",
+        "kind": "Capa",
+        "severity": "unknown",
+        "icon": "dt:ApplicationsIcon",
+        "dql": "fetch dt.davis.problems, from: now()-2h\n| filter event.status == \"ACTIVE\"\n| filter isNull(dt.davis.is_duplicate) or dt.davis.is_duplicate == false\n| expand tipo = affected_entity_types\n| filter in(tipo, {\"dt.entity.application\", \"dt.entity.mobile_application\", \"dt.entity.synthetic_test\", \"dt.entity.http_check\"})\n| summarize graves = countIf(in(event.category, {\"AVAILABILITY\", \"ERROR\"})), total = count()\n| fieldsAdd status = if(graves > 0, 2, else: if(total > 0, 1, else: 0))",
+        "size": "md",
+        "statusSource": "dql"
+      }
+    },
+    {
+      "id": "n2",
+      "type": "severity",
+      "position": {
+        "x": 264,
+        "y": 0
+      },
+      "data": {
+        "name": "Servicios",
+        "kind": "Capa",
+        "severity": "unknown",
+        "icon": "dt:ServicesIcon",
+        "dql": "fetch dt.davis.problems, from: now()-2h\n| filter event.status == \"ACTIVE\"\n| filter isNull(dt.davis.is_duplicate) or dt.davis.is_duplicate == false\n| expand tipo = affected_entity_types\n| filter in(tipo, {\"dt.entity.service\"})\n| summarize graves = countIf(in(event.category, {\"AVAILABILITY\", \"ERROR\"})), total = count()\n| fieldsAdd status = if(graves > 0, 2, else: if(total > 0, 1, else: 0))",
+        "size": "md",
+        "statusSource": "dql"
+      }
+    },
+    {
+      "id": "n3",
+      "type": "severity",
+      "position": {
+        "x": 528,
+        "y": 0
+      },
+      "data": {
+        "name": "Procesos",
+        "kind": "Capa",
+        "severity": "unknown",
+        "icon": "dt:ProcessIcon",
+        "dql": "fetch dt.davis.problems, from: now()-2h\n| filter event.status == \"ACTIVE\"\n| filter isNull(dt.davis.is_duplicate) or dt.davis.is_duplicate == false\n| expand tipo = affected_entity_types\n| filter in(tipo, {\"dt.entity.process_group\", \"dt.entity.process_group_instance\"})\n| summarize graves = countIf(in(event.category, {\"AVAILABILITY\", \"ERROR\"})), total = count()\n| fieldsAdd status = if(graves > 0, 2, else: if(total > 0, 1, else: 0))",
+        "size": "md",
+        "statusSource": "dql"
+      }
+    },
+    {
+      "id": "n4",
+      "type": "severity",
+      "position": {
+        "x": 528,
+        "y": 168
+      },
+      "data": {
+        "name": "Kubernetes",
+        "kind": "Capa",
+        "severity": "unknown",
+        "icon": "dt:ContainerIcon",
+        "dql": "fetch dt.davis.problems, from: now()-2h\n| filter event.status == \"ACTIVE\"\n| filter isNull(dt.davis.is_duplicate) or dt.davis.is_duplicate == false\n| expand tipo = affected_entity_types\n| filter in(tipo, {\"dt.entity.cloud_application\", \"dt.entity.cloud_application_instance\", \"dt.entity.kubernetes_cluster\", \"dt.entity.kubernetes_node\"})\n| summarize graves = countIf(in(event.category, {\"AVAILABILITY\", \"ERROR\"})), total = count()\n| fieldsAdd status = if(graves > 0, 2, else: if(total > 0, 1, else: 0))",
+        "size": "md",
+        "statusSource": "dql"
+      }
+    },
+    {
+      "id": "n5",
+      "type": "severity",
+      "position": {
+        "x": 792,
+        "y": 0
+      },
+      "data": {
+        "name": "Hosts",
+        "kind": "Capa",
+        "severity": "unknown",
+        "icon": "dt:HostsIcon",
+        "dql": "fetch dt.davis.problems, from: now()-2h\n| filter event.status == \"ACTIVE\"\n| filter isNull(dt.davis.is_duplicate) or dt.davis.is_duplicate == false\n| expand tipo = affected_entity_types\n| filter in(tipo, {\"dt.entity.host\", \"dt.entity.disk\"})\n| summarize graves = countIf(in(event.category, {\"AVAILABILITY\", \"ERROR\"})), total = count()\n| fieldsAdd status = if(graves > 0, 2, else: if(total > 0, 1, else: 0))",
+        "size": "md",
+        "statusSource": "dql"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "xy-edge__n1-n2",
+      "source": "n1",
+      "target": "n2"
+    },
+    {
+      "id": "xy-edge__n2-n3",
+      "source": "n2",
+      "target": "n3"
+    },
+    {
+      "id": "xy-edge__n3-n5",
+      "source": "n3",
+      "target": "n5"
+    },
+    {
+      "id": "xy-edge__n4-n5",
+      "source": "n4",
+      "target": "n5"
+    }
+  ],
+  "settings": {}
+}

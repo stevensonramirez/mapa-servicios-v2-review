@@ -197,7 +197,8 @@ export const collectTagConditions = (dql: string): string[] => {
 // con su conector or/and interno ya resuelto) van en AND entre sí.
 // "" si no hay ni ids ni tags → no se consulta.
 // Tope de filas de la lista del modal (y del contexto de CoPilot). Si la lista
-// llega al tope, el modal cuenta el total real con buildActiveProblemsCountQuery.
+// llega al tope, el modal cuenta el total real con la consulta de conteo
+// (buildActiveProblemsCountQuery).
 export const ACTIVE_PROBLEMS_LIMIT = 12;
 
 // Base común (fuente + filtros) de la lista y del conteo. Excluye los problemas

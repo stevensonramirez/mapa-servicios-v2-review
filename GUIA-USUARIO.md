@@ -6,7 +6,7 @@ Esta guía asume que ya conoces Dynatrace (Smartscape, Davis, DQL, Notebooks).
 
 ---
 
-## 📑 Índice
+## Índice
 1. [¿Para qué sirve esta app?](#1-para-qué-sirve-esta-app)
 2. [Conceptos en 1 minuto](#2-conceptos-en-1-minuto)
 3. [Gestión de mapas](#3-gestión-de-mapas)
@@ -261,7 +261,7 @@ relaciones**, en otra pestaña.
 Botón de la toolbar (aparece cuando hay nodos atados): revisa **todo el mapa**  y sugiere las
 conexiones que existen entre tus nodos atados y no están dibujadas. Las que aceptes se
 crean con herencia de estado.
-> **Escenario típico**: el cliente despliega un microservicio nuevo en la cadena. En vez de que
+> **Escenario típico**: se despliega un microservicio nuevo en la cadena. En vez de que
 > alguien "se acuerde" de actualizar el diagrama, abres el nodo vecino → Entidades Relacionadas → el
 > servicio nuevo aparece en la lista → un clic y queda en el mapa, ya monitoreado por Davis.
 ## 8. La burbuja «¿Por qué está así?»
@@ -380,7 +380,7 @@ cuándo (👤 *Solicitado por*), y ese nombre también aparece junto al mapa en 
 - Hasta 60 problemas por análisis: si el mapa tiene más, se analizan **los más graves** (primero los activos;
   luego severidad, categoría, nodos que toca, entidades afectadas y antigüedad) y la leyenda avisa «Se analizaron N de M». El resultado
   puede variar entre corridas; por eso se guarda el último.
-- Todas las horas están en hora de Colombia. Antes de enviar datos a la IA se enmascaran IPs, correos y URLs;
+- Todas las horas están en UTC-5 (configurable en el workflow). Antes de enviar datos a la IA se enmascaran IPs, correos y URLs;
   en el análisis y en los comentarios los nombres de los nodos se muestran completos.
 - Los usuarios necesitan los permisos `automation:workflows:run` y `automation:workflows:read`.
 
@@ -448,7 +448,7 @@ La app es deliberadamente frugal con Grail:
 - **DQL propios** de nodos/conexión: cuestan lo que cueste cada consulta, con su propio timeframe.
 - En un **Mapa Padre**, los DQL de los mapas incrustados corren con la cadencia de actualización
   configurada en Ajustes (10 min, 5 min o Manual), así que esa cadencia gobierna su consumo.
-- Conexiónes con **herencia de estado**
+- Las conexiones con **herencia de estado** no ejecutan ninguna consulta.
 La **leyenda de consumo** (esquina inferior) muestra el consumo real por hora de los DQL del mapa,
 leído de los eventos de ejecución del propio Grail,  no un estimado. Úsala para decidir si un DQL
 caro amerita optimizarse o cambiarse por atadura a entidad.
@@ -463,7 +463,7 @@ caro amerita optimizarse o cambiarse por atadura a entidad.
 2. Revisa la lista de problemas activos y abre en Dynatrace el que corresponda; si quieres el análisis
    de causa, usa **«Analizar con Dynatrace Assist»** (o enciende «Análisis con IA en la burbuja» en
    Ajustes para que Davis CoPilot lo redacte ahí mismo).
-3. Si el impacto viene de una dependencia, las conexiónes heredadas muestran por dónde se propaga.
+3. Si el impacto viene de una dependencia, las conexiones heredadas muestran por dónde se propaga.
 ### C) La arquitectura cambió
 1. Abres el nodo del servicio que cambió → **Entidades Relacionadas**.
 2. Conectas lo nuevo (`+`), quitas o marcas como intencional lo que quedó **sin respaldo**.
@@ -496,5 +496,6 @@ Revisa que estés buscando en el tipo correcto y que el término coincida con pa
 búsqueda es por contenido, sin distinguir mayúsculas).
 
 **¿La app modifica algo en Dynatrace?**
-No. Todos los permisos sobre el ambiente son de **lectura**; lo único que escribe son sus propios
-documentos (los mapas) y los permisos de compartirlos.
+Solo tres cosas: sus propios documentos (los mapas), los permisos para compartirlos y, cuando se corre
+un análisis de causa raíz, los comentarios que deja en los problemas analizados. Todos los demás permisos
+sobre el ambiente son de **lectura**.

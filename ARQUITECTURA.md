@@ -3,7 +3,7 @@
 Documento de arquitectura de **Mapas de Servicios V2** (`my.mapaservicios.v2`), una app nativa de
 **Dynatrace AppEngine** para modelar mapas de servicios curados con estado vivo. Describe el stack
 técnico, las decisiones de diseño, el modelo de escalabilidad y las prácticas con las que se
-desarrolla y mantiene. Versión de referencia: **0.9.1** (28 de octubre de 2026; rol Analista al compartir; barra superior con prioridad a los botones; validación estricta del contenido de los mapas; las 3 IAs —CoPilot, Assist y causa raíz— encendidas en todos los mapas, causa raíz también en Mapas Padre, con los problemas cerrados en los últimos 15 minutos y limpieza del mapa cuando todo se resuelve).
+desarrolla y mantiene. Versión de referencia: **0.9.2** (noviembre de 2026; rol Analista al compartir; barra superior con prioridad a los botones; validación estricta del contenido de los mapas; las 3 IAs —CoPilot, Assist y causa raíz— encendidas en todos los mapas, causa raíz también en Mapas Padre, con los problemas cerrados en los últimos 15 minutos y limpieza del mapa cuando todo se resuelve).
 
 ---
 

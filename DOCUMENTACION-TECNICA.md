@@ -1,6 +1,6 @@
 # Mapas de Servicios V2 — Documentación técnica
 
-App de Dynatrace AppEngine (`my.mapaservicios.v2`, v0.9.1) para mapas curados de servicios con estado
+App de Dynatrace AppEngine (`my.mapaservicios.v2`, v0.9.2) para mapas curados de servicios con estado
 en vivo. Este documento es para el equipo que va a **mantener y evolucionar** la app: cómo está hecha,
 dónde está cada cosa y qué consideraciones no son obvias. La guía funcional está en
 [GUIA-USUARIO.md](GUIA-USUARIO.md) y la implementación en un tenant nuevo, en [README.md](README.md).

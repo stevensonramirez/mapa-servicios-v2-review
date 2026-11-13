@@ -8,6 +8,12 @@ and role-based collaboration. Version 0.9.2.
 
 **[Español](#español)** · **[English](#english)**
 
+![Mapa con estado en vivo / Map with live status](docs/images/map-overview.jpg)
+
+| «¿Por qué está así?» con Davis CoPilot / "Why is it like this?" with Davis CoPilot | Compartir con 3 roles / Sharing with 3 roles |
+|---|---|
+| ![Burbuja / Bubble](docs/images/why-bubble.jpg) | ![Compartir / Share](docs/images/share-roles.jpg) |
+
 ---
 
 ## Español
@@ -109,6 +115,13 @@ recomienda que el dueño sea un grupo y el actor un usuario de servicio con perm
 - leer problemas, eventos y Smartscape en Grail;
 - usar Dynatrace Intelligence;
 - comentar problemas.
+
+Además, el actor debe autorizar esos permisos para los workflows en **Workflows → Settings → Authorization
+settings**: los tres «Primary permissions» y, en «Secondary permissions», `storage:buckets:read`,
+`storage:events:read`, `storage:entities:read`, `storage:smartscape:read`, `storage:logs:read`,
+`storage:metrics:read`, `storage:spans:read`, `ai:operator:execute`, `automation:workflows:read` y los grupos
+`davis`, `davis-copilot` y `mcp-gateway` (las herramientas del agente vienen del servidor MCP de Dynatrace).
+Sin eso, el análisis falla con *«Could not run workflow task on behalf of…»*.
 
 **6. Permisos de los usuarios**
 
@@ -279,6 +292,13 @@ a group as owner and a service user as actor, with permissions to:
 - read problems, events and Smartscape in Grail;
 - use Dynatrace Intelligence;
 - comment on problems.
+
+The actor must also authorize those permissions for workflows in **Workflows → Settings → Authorization
+settings**: the three "Primary permissions" and, under "Secondary permissions", `storage:buckets:read`,
+`storage:events:read`, `storage:entities:read`, `storage:smartscape:read`, `storage:logs:read`,
+`storage:metrics:read`, `storage:spans:read`, `ai:operator:execute`, `automation:workflows:read` and the
+`davis`, `davis-copilot` and `mcp-gateway` groups (the agent's tools come from the Dynatrace MCP server).
+Without it, the analysis fails with *"Could not run workflow task on behalf of…"*.
 
 **6. User permissions**
 
